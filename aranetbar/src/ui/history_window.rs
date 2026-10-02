@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-struct ExportIvars {
+pub struct ExportIvars {
     mtm: MainThreadMarker,
     log_path: RefCell<PathBuf>,
 }

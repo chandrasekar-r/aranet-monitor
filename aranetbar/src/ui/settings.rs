@@ -53,7 +53,7 @@ struct Form {
     chat: Retained<NSTextField>,
 }
 
-struct PanelIvars {
+pub struct PanelIvars {
     mtm: MainThreadMarker,
     form: RefCell<Option<Form>>,
     base: RefCell<Config>,
