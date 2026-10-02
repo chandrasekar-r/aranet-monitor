@@ -1,8 +1,9 @@
 [package]
 name = "aranetbar"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "macOS menu bar monitor for Aranet4 sensors"
+build = "build.rs"
 
 [lib]
 path = "src/lib.rs"
@@ -10,6 +11,22 @@ path = "src/lib.rs"
 [[bin]]
 name = "aranetbar"
 path = "src/main.rs"
+required-features = ["macos-app"]
+
+[features]
+default = []
+macos-app = [
+    "dep:block2",
+    "dep:btleplug",
+    "dep:futures",
+    "dep:objc2",
+    "dep:objc2-app-kit",
+    "dep:objc2-foundation",
+    "dep:objc2-service-management",
+    "dep:objc2-user-notifications",
+    "dep:tao",
+    "dep:tokio",
+]
 
 [dependencies]
 chrono = "0.4"
@@ -18,19 +35,22 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.151"
 toml = "1"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-block2 = "0.6"
-btleplug = "0.13"
-futures = "0.3"
-objc2 = "0.6"
-objc2-app-kit = "0.3"
-objc2-foundation = "0.3"
-objc2-service-management = "0.3"
-objc2-user-notifications = "0.3"
-tao = "0.37"
-tokio = { version = "1", features = ["rt", "time", "macros"] }
 ureq = "3.4.2"
+
+btleplug = { version = "0.13", optional = true }
+futures = { version = "0.3", optional = true }
+tokio = { version = "1", features = ["rt", "time", "macros"], optional = true }
+
+block2 = { version = "0.6", optional = true }
+objc2 = { version = "0.6", optional = true }
+objc2-app-kit = { version = "0.3", optional = true }
+objc2-foundation = { version = "0.3", optional = true }
+objc2-service-management = { version = "0.3", optional = true }
+objc2-user-notifications = { version = "0.3", optional = true }
+tao = { version = "0.37", optional = true }
+
+[build-dependencies]
+cc = "1.2"
 
 [profile.release]
 lto = true

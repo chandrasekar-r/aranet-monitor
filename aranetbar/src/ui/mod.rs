@@ -229,6 +229,17 @@ impl Ui {
         add("Reload config", Command::ReloadConfig, "");
         add("Send test alert", Command::TestAlert, "");
         menu.addItem(&NSMenuItem::separatorItem(self.mtm));
+        let updates = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(self.mtm),
+                &NSString::from_str("Check for Updates…"),
+                None,
+                &NSString::new(),
+            )
+        };
+        crate::updater::configure_menu_item(&updates);
+        menu.addItem(&updates);
+        menu.addItem(&NSMenuItem::separatorItem(self.mtm));
         add("Quit AranetBar", Command::Quit, "q");
         let h = self.gear.bounds().size.height;
         menu.popUpMenuPositioningItem_atLocation_inView(None, NSPoint::new(0.0, h + 4.0), Some(&self.gear));
@@ -243,7 +254,7 @@ impl Ui {
         let alert = NSAlert::new(self.mtm);
         alert.setMessageText(&NSString::from_str("AranetBar"));
         alert.setInformativeText(&NSString::from_str(
-            "Passive Aranet4 CO₂ monitor for the menu bar.\n\nVersion 0.2.0",
+            "Passive Aranet4 CO₂ monitor for the menu bar.\n\nVersion 0.2.1",
         ));
         alert.addButtonWithTitle(&NSString::from_str("OK"));
         NSApplication::sharedApplication(self.mtm).activate();

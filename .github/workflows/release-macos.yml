@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build and upload (e.g. v0.2.0)"
+        description: "Release tag to build and upload (e.g. v0.2.1)"
         required: true
-        default: "v0.2.0"
+        default: "v0.2.1"
 
 permissions:
   contents: write
@@ -17,19 +17,43 @@ permissions:
 jobs:
   build:
     runs-on: macos-14
+    defaults:
+      run:
+        working-directory: aranetbar
     steps:
-      # Tag v0.2.0 predates this workflow; manual runs build from main at the Cargo.toml version.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && 'refs/heads/main' || github.ref }}
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Build DMG and ZIP
+      - name: Build DMG, ZIP, and Sparkle update archive
+        env:
+          SPARKLE_EDDSA_PUBLIC_KEY: ${{ secrets.SPARKLE_EDDSA_PUBLIC_KEY }}
         run: |
-          cd aranetbar
-          chmod +x build-app.sh package-release.sh
+          chmod +x build-app.sh package-release.sh scripts/*.sh
           ./package-release.sh
+          ditto -c -k --keepParent target/AranetBar.app target/AranetBar.zip
+
+      - name: Sign update archive
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: |
+          if [ -n "$SPARKLE_EDDSA_PRIVATE_KEY" ]; then
+            key_file="$(mktemp)"
+            printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" >"$key_file"
+            macos/Frameworks/sparkle-tools/sign_update target/AranetBar.zip --ed-key-file "$key_file" > target/sign_update.txt
+            rm -f "$key_file"
+          fi
+
+      - name: Generate appcast
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: |
+          mkdir -p target/appcast-input
+          cp target/AranetBar.zip target/appcast-input/
+          ./scripts/generate_appcast.sh target/appcast-input
+          cp macos/appcast.xml target/appcast.xml
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -38,4 +62,6 @@ jobs:
           files: |
             aranetbar/target/AranetBar-v*.dmg
             aranetbar/target/AranetBar-v*.zip
+            aranetbar/target/AranetBar.zip
+            aranetbar/target/appcast.xml
           fail_on_unmatched_files: true
