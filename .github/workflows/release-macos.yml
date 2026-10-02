@@ -18,9 +18,10 @@ jobs:
   build:
     runs-on: macos-14
     steps:
+      # Tag v0.2.0 predates this workflow; manual runs build from main at the Cargo.toml version.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'refs/heads/main' || github.ref }}
 
       - uses: dtolnay/rust-toolchain@stable
 
