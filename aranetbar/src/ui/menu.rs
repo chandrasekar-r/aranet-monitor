@@ -10,12 +10,12 @@ use objc2_foundation::NSString;
 
 pub fn install(mtm: MainThreadMarker, target: &Target) {
     let app_menu = NSMenu::new(mtm);
-    app_menu.addItem(&item(mtm, "About AranetBar", sel!(menuPicked:), Command::About, ""));
+    app_menu.addItem(&item(mtm, target, "About AranetBar", sel!(menuPicked:), Command::About, ""));
     app_menu.addItem(&NSMenuItem::separatorItem(mtm));
-    app_menu.addItem(&item(mtm, "Alert settings…", sel!(menuPicked:), Command::AlertSettings, ","));
-    app_menu.addItem(&item(mtm, "History…", sel!(menuPicked:), Command::ShowHistory, "h"));
+    app_menu.addItem(&item(mtm, target, "Alert settings…", sel!(menuPicked:), Command::AlertSettings, ","));
+    app_menu.addItem(&item(mtm, target, "History…", sel!(menuPicked:), Command::ShowHistory, "h"));
     app_menu.addItem(&NSMenuItem::separatorItem(mtm));
-    app_menu.addItem(&item(mtm, "Quit AranetBar", sel!(menuPicked:), Command::Quit, "q"));
+    app_menu.addItem(&item(mtm, target, "Quit AranetBar", sel!(menuPicked:), Command::Quit, "q"));
 
     let app_item = NSMenuItem::new(mtm);
     app_item.setSubmenu(&app_menu);
@@ -24,7 +24,14 @@ pub fn install(mtm: MainThreadMarker, target: &Target) {
     NSApplication::sharedApplication(mtm).setMainMenu(Some(&main));
 }
 
-fn item(mtm: MainThreadMarker, title: &str, action: Sel, cmd: Command, key: &str) -> Retained<NSMenuItem> {
+fn item(
+    mtm: MainThreadMarker,
+    target: &Target,
+    title: &str,
+    action: Sel,
+    cmd: Command,
+    key: &str,
+) -> Retained<NSMenuItem> {
     let item = unsafe {
         NSMenuItem::initWithTitle_action_keyEquivalent(
             NSMenuItem::alloc(mtm),

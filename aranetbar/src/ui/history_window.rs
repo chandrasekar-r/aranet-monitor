@@ -23,7 +23,8 @@ define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
     #[name = "ABHistoryExportTarget"]
-    struct ExportTarget;
+    #[ivars = ExportIvars]
+    pub struct ExportTarget;
 
     unsafe impl NSObjectProtocol for ExportTarget {}
 
@@ -39,8 +40,8 @@ define_class!(
                 return;
             }
             let Some(url) = panel.URL() else { return };
-            let dest = url.path().to_string();
-            if !dest.is_empty() && path.exists() {
+            let Some(dest) = url.path().map(|p| p.to_string()) else { return };
+            if path.exists() {
                 let _ = std::fs::copy(&path, dest);
             }
         }
@@ -67,7 +68,7 @@ pub fn show(
     scroll.setDocumentView(Some(&text));
     text.setMinSize(NSSize::new(0.0, 0.0));
 
-    let export = {
+    let export: Retained<ExportTarget> = {
         let this = ExportTarget::alloc(mtm).set_ivars(ExportIvars {
             mtm,
             log_path: RefCell::new(log_path.to_path_buf()),
