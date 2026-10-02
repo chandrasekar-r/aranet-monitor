@@ -1,13 +1,7 @@
 #import "golden_gate_bridge.h"
 
 #import <AppKit/AppKit.h>
-
-#if __has_include(<WidgetKit/WidgetKit.h>)
-#import <WidgetKit/WidgetKit.h>
-#define ARANETBAR_HAS_WIDGETKIT 1
-#else
-#define ARANETBAR_HAS_WIDGETKIT 0
-#endif
+#include <dlfcn.h>
 
 void *aranetbar_popover_root_view(void) {
     @autoreleasepool {
@@ -30,25 +24,39 @@ void *aranetbar_popover_root_view(void) {
 }
 
 static void reload_controls(BOOL all) {
-#if ARANETBAR_HAS_WIDGETKIT
+    // ControlCenter has no Objective-C header on current SDKs; resolve at runtime.
     if (@available(macOS 26.0, *)) {
+        Class cc = NSClassFromString(@"ControlCenter");
+        if (cc == nil) {
+            return;
+        }
+        id shared = [cc performSelector:@selector(shared)];
+        if (shared == nil) {
+            return;
+        }
         if (all) {
-            [ControlCenter.shared reloadAllControls];
+            [shared performSelector:@selector(reloadAllControls)];
         } else {
-            [ControlCenter.shared reloadControlsOfKind:@"com.20deg.aranetbar.mute-co2"];
+            [shared performSelector:@selector(reloadControlsOfKind:)
+                         withObject:@"com.20deg.aranetbar.mute-co2"];
         }
     }
-#else
-    (void)all;
-#endif
 }
 
 static void reload_widgets(void) {
-#if ARANETBAR_HAS_WIDGETKIT
+    // WidgetCenter likewise: resolve at runtime instead of relying on headers.
     if (@available(macOS 11.0, *)) {
-        [WidgetCenter.shared reloadTimelinesOfKind:@"com.20deg.aranetbar.co2-widget"];
+        Class wc = NSClassFromString(@"WidgetCenter");
+        if (wc == nil) {
+            return;
+        }
+        id shared = [wc performSelector:@selector(shared)];
+        if (shared == nil) {
+            return;
+        }
+        [shared performSelector:@selector(reloadTimelinesOfKind:)
+                     withObject:@"com.20deg.aranetbar.co2-widget"];
     }
-#endif
 }
 
 void aranetbar_reload_control_center(void) {
@@ -61,9 +69,11 @@ void aranetbar_reload_all_control_center(void) {
 }
 
 void aranetbar_refresh_app_intents(void) {
-    // Implemented in Swift (AranetBarIntents); linked when extensions package is built.
-    extern void AranetBarRefreshAppIntents(void) __attribute__((weak_import));
-    if (AranetBarRefreshAppIntents) {
-        AranetBarRefreshAppIntents();
+    // Implemented in Swift (AranetBarIntents); linked when extensions package is
+    // built. Resolve at runtime so the main binary links without it — weak_import
+    // references are promoted to strong by the linker on current toolchains.
+    void (*refresh)(void) = (void (*)(void))dlsym(RTLD_DEFAULT, "AranetBarRefreshAppIntents");
+    if (refresh != NULL) {
+        refresh();
     }
 }

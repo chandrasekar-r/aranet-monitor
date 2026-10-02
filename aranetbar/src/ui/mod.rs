@@ -678,9 +678,10 @@ fn symbol(name: &str, description: &str) -> Retained<NSImage> {
 fn popover_root(mtm: MainThreadMarker) -> Retained<NSView> {
     if let Some(raw) = NonNull::new(integrations::popover_root_view()) {
         unsafe {
-            let view = Retained::<NSView>::from_raw(raw.cast());
-            view.setFrame(rect(0.0, 0.0, W, 400.0));
-            return view;
+            if let Some(view) = Retained::<NSView>::from_raw(raw.cast().as_ptr()) {
+                view.setFrame(rect(0.0, 0.0, W, 400.0));
+                return view;
+            }
         }
     }
     let effect = NSVisualEffectView::new(mtm);

@@ -369,7 +369,7 @@ impl App {
             &self.config.pinned,
             &self.config.nicknames,
             &self.config.db_path,
-            interval,
+            u32::from(interval),
             latest_co2,
         );
         self.ui.render(vm);

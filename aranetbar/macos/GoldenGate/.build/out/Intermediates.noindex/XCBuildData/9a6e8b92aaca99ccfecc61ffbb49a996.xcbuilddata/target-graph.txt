@@ -1,0 +1,11 @@
+Target dependency graph (4 targets)
+Target 'AllExcludingTests' in project 'Aggregate'
+➜ Explicit dependency on target 'AranetBarIntentsBridge-product' in project 'AranetBarGoldenGate'
+➜ Explicit dependency on target 'AranetBarIntentsBridge' in project 'AranetBarGoldenGate'
+➜ Explicit dependency on target 'AranetBarShared' in project 'AranetBarGoldenGate'
+Target 'AranetBarIntentsBridge-product' in project 'AranetBarGoldenGate'
+➜ Explicit dependency on target 'AranetBarIntentsBridge' in project 'AranetBarGoldenGate'
+➜ Explicit dependency on target 'AranetBarShared' in project 'AranetBarGoldenGate'
+Target 'AranetBarIntentsBridge' in project 'AranetBarGoldenGate'
+➜ Explicit dependency on target 'AranetBarShared' in project 'AranetBarGoldenGate'
+Target 'AranetBarShared' in project 'AranetBarGoldenGate' (no dependencies)

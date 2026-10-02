@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 static LAST_DB_SYNC: AtomicI64 = AtomicI64::new(0);
 
 #[cfg(all(feature = "macos-app", target_os = "macos"))]
-extern "C" {
+unsafe extern "C" {
     fn aranetbar_popover_root_view() -> *mut std::ffi::c_void;
     fn aranetbar_reload_control_center();
     fn aranetbar_reload_all_control_center();

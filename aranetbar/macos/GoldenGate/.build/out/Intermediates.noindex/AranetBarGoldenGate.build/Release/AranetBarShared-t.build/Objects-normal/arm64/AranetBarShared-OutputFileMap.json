@@ -1,0 +1,26 @@
+{
+  "" : {
+    "const-values" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary.swiftconstvalues",
+    "dependencies" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary.d",
+    "diagnostics" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary.dia",
+    "emit-module-dependencies" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary-emit-module.dia",
+    "pch" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AranetBarShared-primary.swiftdeps"
+  },
+  "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/Sources/AranetBarShared/AppGroup.swift" : {
+    "index-unit-output-path" : "/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AppGroup.o",
+    "llvm-bc" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AppGroup.bc",
+    "object" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/AppGroup.o"
+  },
+  "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/Sources/AranetBarShared/GoldenGateState.swift" : {
+    "index-unit-output-path" : "/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/GoldenGateState.o",
+    "llvm-bc" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/GoldenGateState.bc",
+    "object" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/GoldenGateState.o"
+  },
+  "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/Sources/AranetBarShared/SnoozeIntent.swift" : {
+    "index-unit-output-path" : "/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/SnoozeIntent.o",
+    "llvm-bc" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/SnoozeIntent.bc",
+    "object" : "/Users/rc/aranet-monitor/aranetbar/macos/GoldenGate/.build/out/Intermediates.noindex/AranetBarGoldenGate.build/Release/AranetBarShared-t.build/Objects-normal/arm64/SnoozeIntent.o"
+  }
+}
