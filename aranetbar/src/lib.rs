@@ -1,22 +1,23 @@
-//! Library surface for unit tests and the `aranetbar` binary.
+//! Core logic for AranetBar. macOS UI and menu bar live behind the `macos-app` feature.
 
 pub mod alerts;
 pub mod aranet;
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
+pub mod ble;
 pub mod config;
 pub mod csvlog;
 pub mod db;
 pub mod history;
+pub mod telegram;
 pub mod viewmodel;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
 pub mod app;
-#[cfg(target_os = "macos")]
-pub mod ble;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
 pub mod login;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
 pub mod notify;
-#[cfg(target_os = "macos")]
-pub mod telegram;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
 pub mod ui;
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
+pub mod updater;

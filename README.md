@@ -18,6 +18,7 @@ Two pieces, same idea:
 - Local SQLite history with a history view
 - Launch-at-login via `SMAppService`
 - CSV export
+- In-app updates via [Sparkle 2](https://sparkle-project.org/) (automatic daily checks and **Check for Updates…** in the settings menu)
 
 ## Building aranetbar
 
@@ -27,18 +28,53 @@ Pre-built **DMG** and **ZIP** for each tagged release are on the [GitHub Release
 
 ```sh
 cd aranetbar
-./bundle.sh          # builds release, signs ad-hoc, installs to ~/Applications
+./bundle.sh          # fetches Sparkle, builds release, signs ad-hoc, installs to ~/Applications
 ./package-release.sh # builds target/AranetBar-v*.dmg and .zip (same as CI)
 ```
 
 Or manually:
 
 ```sh
-cargo build --release
+./scripts/fetch_sparkle.sh
+cargo build --release --features macos-app
 open target/release/aranetbar
 ```
 
+Linux CI runs library tests only (`cargo test --lib`); the menu bar binary is macOS-only.
+
 macOS will ask for Bluetooth permission the first time — grant it in System Settings → Privacy & Security → Bluetooth.
+
+### In-app updates (maintainers)
+
+Sparkle reads `SUFeedURL`, `SUPublicEDKey`, and version fields from `macos/Info.plist`. The feed URL is the **latest GitHub release** asset:
+
+`https://github.com/chandrasekar-r/aranet-monitor/releases/latest/download/appcast.xml`
+
+A copy is also kept in-repo at `aranetbar/macos/appcast.xml` for review; release workflow publishes the signed feed on each tag.
+
+**One-time EdDSA keys** (on a Mac, after `./scripts/fetch_sparkle.sh`):
+
+```sh
+macos/Frameworks/sparkle-tools/generate_keys
+```
+
+Save the private key for CI and put the **public** key in `Info.plist` (`SUPublicEDKey`) and in the GitHub secret `SPARKLE_EDDSA_PUBLIC_KEY`.
+
+**GitHub Actions secrets** for tagged releases (`v*`):
+
+| Secret | Purpose |
+|--------|---------|
+| `SPARKLE_EDDSA_PRIVATE_KEY` | Signs update archives and appcast entries |
+| `SPARKLE_EDDSA_PUBLIC_KEY` | Injected into `Info.plist` at release build time |
+
+**Release checklist**
+
+1. Bump `version` in `aranetbar/Cargo.toml`, `CFBundleShortVersionString`, and increment `CFBundleVersion` in `macos/Info.plist`; update `CHANGELOG.md`.
+2. Merge to `main`, then tag `vX.Y.Z` (e.g. `v0.2.1`) and push the tag.
+3. The [macOS release](.github/workflows/release-macos.yml) workflow builds versioned DMG/ZIP, `AranetBar.zip` (Sparkle update archive), and a signed `appcast.xml`, and attaches them to the GitHub release.
+4. For distribution outside GitHub, optionally **notarize** the `.app` or `.zip` with your Apple Developer ID before archiving; Sparkle expects a zip of the `.app` bundle. Ad-hoc builds from `./bundle.sh` update-check in dev but production feeds should use release-signed assets.
+
+For local dev without matching signatures, Sparkle still loads but will reject unsigned feeds until you use release-built artifacts or a test appcast.
 
 ## Running the Python monitor
 
