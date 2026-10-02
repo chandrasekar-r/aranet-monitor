@@ -1,7 +1,7 @@
 //! Standard application menu for an accessory (menu bar) app.
 
 use super::{Command, views::Target};
-use objc2::MainThreadMarker;
+use objc2::{AllocAnyThread, MainThreadMarker};
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::sel;
@@ -18,7 +18,7 @@ pub fn install(mtm: MainThreadMarker, target: &Target) {
     app_menu.addItem(&item(mtm, target, "Quit AranetBar", sel!(menuPicked:), Command::Quit, "q"));
 
     let app_item = NSMenuItem::new(mtm);
-    app_item.setSubmenu(&app_menu);
+    app_item.setSubmenu(Some(&app_menu));
     let main = NSMenu::new(mtm);
     main.addItem(&app_item);
     NSApplication::sharedApplication(mtm).setMainMenu(Some(&main));

@@ -12,7 +12,7 @@ use crate::viewmodel::{self, Hero, Row, Title, Tone, ViewModel, tone_state_label
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::{MainThreadMarker, MainThreadOnly, sel};
+use objc2::{AllocAnyThread, MainThreadMarker, MainThreadOnly, sel};
 use objc2_app_kit::{
     NSAccessibility, NSAccessibilityLayoutChangedNotification, NSAlert, NSAlertFirstButtonReturn, NSApplication,
     NSBackingStoreType, NSButton, NSColor, NSControlStateValueOff, NSControlStateValueOn, NSFont, NSFontTextStyleBody,
