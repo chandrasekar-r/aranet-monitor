@@ -1,4 +1,5 @@
 #import "sparkle_updater.h"
+#import <AppKit/AppKit.h>
 #import <Sparkle/Sparkle.h>
 
 static SPUStandardUpdaterController *gUpdaterController;
