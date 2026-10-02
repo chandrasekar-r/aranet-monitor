@@ -58,6 +58,8 @@ SELECT year, room,
 FROM readings_by_room GROUP BY year, room;
 ";
 
+pub type HistoryRow = (String, String, Option<i64>, Option<f64>);
+
 pub struct Db {
     conn: Connection,
 }
@@ -137,6 +139,47 @@ impl Db {
             self.insert_row(at, sensor, co2.parse().ok(), temp.parse().ok(), humidity.parse().ok(), pressure.parse().ok(), battery.parse().ok())?;
         }
         tx.commit()
+    }
+
+    /// Distinct sensors with readings, most recently seen first.
+    pub fn list_sensors(&self) -> rusqlite::Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT sensor FROM readings GROUP BY sensor ORDER BY MAX(time) DESC",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect()
+    }
+
+    /// Recent rows for one sensor (or all sensors when `sensor` is `None`).
+    pub fn recent_readings(
+        &self,
+        sensor: Option<&str>,
+        limit: usize,
+    ) -> rusqlite::Result<Vec<HistoryRow>> {
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let mut out = Vec::new();
+        if let Some(sensor) = sensor {
+            let mut stmt = self.conn.prepare(
+                "SELECT sensor, time, co2, temp_c FROM readings WHERE sensor = ?1 ORDER BY time DESC LIMIT ?2",
+            )?;
+            let rows = stmt.query_map(params![sensor, limit], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })?;
+            for row in rows {
+                out.push(row?);
+            }
+        } else {
+            let mut stmt = self.conn.prepare(
+                "SELECT sensor, time, co2, temp_c FROM readings ORDER BY time DESC LIMIT ?1",
+            )?;
+            let rows = stmt.query_map(params![limit], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })?;
+            for row in rows {
+                out.push(row?);
+            }
+        }
+        Ok(out)
     }
 
     /// Mirrors the app's nicknames into the `sensors` table.

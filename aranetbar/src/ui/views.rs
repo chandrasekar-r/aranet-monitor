@@ -6,7 +6,10 @@ use crate::viewmodel::Tone;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol};
 use objc2::{AllocAnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
-use objc2_app_kit::{NSBezierPath, NSColor, NSEvent, NSMenu, NSMenuItem, NSTrackingArea, NSTrackingAreaOptions, NSView};
+use objc2_app_kit::{
+    NSAccessibility, NSBezierPath, NSColor, NSEvent, NSMenu, NSMenuItem, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSWorkspace,
+};
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 use std::cell::Cell;
 
@@ -21,6 +24,28 @@ pub fn tone_color(tone: Tone) -> Retained<NSColor> {
 
 pub fn rect(x: f64, y: f64, w: f64, h: f64) -> NSRect {
     NSRect::new(NSPoint::new(x, y), NSSize::new(w, h))
+}
+
+pub fn increase_contrast() -> bool {
+    NSWorkspace::sharedWorkspace().accessibilityDisplayShouldIncreaseContrast()
+        || NSWorkspace::sharedWorkspace().accessibilityDisplayShouldDifferentiateWithoutColor()
+}
+
+/// Honor Reduced Motion before any future chart animation.
+pub fn prefers_reduced_motion() -> bool {
+    NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion()
+}
+
+fn card_fill_alpha() -> f64 {
+    if increase_contrast() { 0.12 } else { 0.05 }
+}
+
+fn banner_fill_alpha() -> f64 {
+    if increase_contrast() { 0.28 } else { 0.16 }
+}
+
+fn hover_fill_alpha() -> f64 {
+    if increase_contrast() { 0.14 } else { 0.07 }
 }
 
 // ---------------------------------------------------------------- Flipped
@@ -77,6 +102,11 @@ impl ShapeView {
         let this = Self::alloc(mtm).set_ivars(ShapeIvars { color, radius });
         unsafe { msg_send![super(this), initWithFrame: frame] }
     }
+
+    pub fn quaternary_fill(mtm: MainThreadMarker, frame: NSRect, radius: f64) -> Retained<Self> {
+        let alpha = card_fill_alpha();
+        Self::new(mtm, frame, NSColor::labelColor().colorWithAlphaComponent(alpha), radius)
+    }
 }
 
 // ---------------------------------------------------------------- Chart
@@ -86,6 +116,7 @@ pub struct ChartIvars {
     points: Vec<(f64, u16, Tone)>,
     bar_width: f64,
     warn_co2: u16,
+    accessibility_summary: String,
 }
 
 /// Maps CO₂ to a height fraction; shared with the threshold label placement.
@@ -111,30 +142,48 @@ define_class!(
             let (lo, hi) = chart_scale(&iv.points);
             let frac = |c: f64| ((c - lo) / (hi - lo)).clamp(0.0, 1.0);
             let n = iv.points.len();
+            let high_contrast = increase_contrast();
             for (i, &(x, co2, tone)) in iv.points.iter().enumerate() {
                 let h = (frac(co2 as f64) * b.size.height).max(3.0);
                 let left = (x * (b.size.width - iv.bar_width)).max(0.0);
                 let alpha = if i + 1 == n { 1.0 } else { 0.78 };
+                let bar_rect = rect(left, 0.0, iv.bar_width, h);
                 tone_color(tone).colorWithAlphaComponent(alpha).setFill();
-                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect(left, 0.0, iv.bar_width, h), 2.0, 2.0).fill();
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(bar_rect, 2.0, 2.0).fill();
+                if high_contrast {
+                    NSColor::labelColor().colorWithAlphaComponent(0.35).setStroke();
+                    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(bar_rect, 2.0, 2.0).stroke();
+                }
             }
             let y = (frac(iv.warn_co2 as f64) * b.size.height).round() + 0.5;
             let line = NSBezierPath::bezierPath();
             line.moveToPoint(NSPoint::new(0.0, y));
             line.lineToPoint(NSPoint::new(b.size.width, y));
-            line.setLineWidth(1.0);
+            line.setLineWidth(if high_contrast { 1.5 } else { 1.0 });
             let mut dash = [3.0, 3.0];
             unsafe { line.setLineDash_count_phase(dash.as_mut_ptr(), 2, 0.0) };
-            NSColor::tertiaryLabelColor().setStroke();
+            NSColor::secondaryLabelColor().setStroke();
             line.stroke();
         }
     }
 );
 
 impl ChartView {
-    pub fn new(mtm: MainThreadMarker, frame: NSRect, points: Vec<(f64, u16, Tone)>, bar_width: f64, warn_co2: u16) -> Retained<Self> {
-        let this = Self::alloc(mtm).set_ivars(ChartIvars { points, bar_width, warn_co2 });
-        unsafe { msg_send![super(this), initWithFrame: frame] }
+    pub fn new(
+        mtm: MainThreadMarker,
+        frame: NSRect,
+        points: Vec<(f64, u16, Tone)>,
+        bar_width: f64,
+        warn_co2: u16,
+        accessibility_summary: String,
+    ) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(ChartIvars { points, bar_width, warn_co2, accessibility_summary });
+        let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
+        view.setAccessibilityElement(true);
+        view.setAccessibilityLabel(Some(&NSString::from_str("CO₂ history chart")));
+        view.setAccessibilityValue(Some(&NSString::from_str(&view.ivars().accessibility_summary)));
+        view.setAccessibilityRoleDescription(Some(&NSString::from_str("chart")));
+        view
     }
 }
 
@@ -165,8 +214,8 @@ define_class!(
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, _dirty: NSRect) {
             if self.ivars().hover.get() {
-                NSColor::labelColor().colorWithAlphaComponent(0.07).setFill();
-                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(self.bounds(), 7.0, 7.0).fill();
+                NSColor::labelColor().colorWithAlphaComponent(hover_fill_alpha()).setFill();
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(self.bounds(), 6.0, 6.0).fill();
             }
         }
 
@@ -215,9 +264,16 @@ impl RowView {
         name: String,
         menu: Retained<NSMenu>,
         on_action: Box<dyn Fn(UiAction)>,
+        accessibility_label: &str,
+        accessibility_value: &str,
     ) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(RowIvars { name, menu, hover: Cell::new(false), on_action });
         let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
+        view.setAccessibilityElement(true);
+        view.setAccessibilityLabel(Some(&NSString::from_str(accessibility_label)));
+        view.setAccessibilityValue(Some(&NSString::from_str(accessibility_value)));
+        view.setAccessibilityHelp(Some(&NSString::from_str("Click to pin to menu bar. Control-click for more actions.")));
+        view.setAccessibilityRoleDescription(Some(&NSString::from_str("button")));
         let area = unsafe {
             NSTrackingArea::initWithRect_options_owner_userInfo(
                 NSTrackingArea::alloc(),
@@ -232,6 +288,10 @@ impl RowView {
         view.addTrackingArea(&area);
         view
     }
+}
+
+pub fn banner_fill_color() -> Retained<NSColor> {
+    NSColor::systemOrangeColor().colorWithAlphaComponent(banner_fill_alpha())
 }
 
 // ---------------------------------------------------------------- Target
