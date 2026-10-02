@@ -139,7 +139,7 @@ impl Ui {
         };
         gear.setBordered(false);
         gear.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
-        gear.setAccessibilityDescription(Some(&NSString::from_str("Settings")));
+        gear.setAccessibilityLabel(Some(&NSString::from_str("Settings")));
         gear.setAccessibilityHelp(Some(&NSString::from_str("Opens the settings menu")));
 
         let sheet_parent = unsafe {
@@ -321,7 +321,9 @@ impl Ui {
             Title::NoData => "No sensor data".into(),
             Title::Bluetooth => "Bluetooth unavailable".into(),
         };
-        button.setAccessibilityValue(Some(&NSString::from_str(&ax_value)));
+        unsafe {
+            button.setAccessibilityValue(Some(&NSString::from_str(&ax_value)));
+        }
         let _ = tone;
     }
 
@@ -380,7 +382,9 @@ impl Ui {
         let big = label(m, &h.co2, mono_style(TextStyle::LargeTitle, weight(Weight::Semibold)), &NSColor::labelColor());
         place(c, &big, PAD, y);
         big.setAccessibilityLabel(Some(&NSString::from_str("CO₂")));
-        big.setAccessibilityValue(Some(&NSString::from_str(&format!("{} ppm", h.co2))));
+        unsafe {
+            big.setAccessibilityValue(Some(&NSString::from_str(&format!("{} ppm", h.co2))));
+        }
         let big_h = big.frame().size.height;
         let unit = label(m, "ppm CO₂", styled(TextStyle::Footnote), &NSColor::secondaryLabelColor());
         place(c, &unit, PAD + width(&big) + 4.0, y + big_h - unit.frame().size.height - 8.0);
@@ -457,7 +461,9 @@ impl Ui {
         add(c, &sym);
         place(c, &l, x + GAP_S + 18.0, y + (24.0 - height(&l)) / 2.0);
         l.setAccessibilityLabel(Some(&NSString::from_str(text)));
-        l.setAccessibilityValue(Some(&NSString::from_str(tone_state_label(tone))));
+        unsafe {
+            l.setAccessibilityValue(Some(&NSString::from_str(tone_state_label(tone))));
+        }
     }
 
     fn others(&self, c: &NSView, mut y: f64, rows: &[Row]) -> f64 {
@@ -590,6 +596,7 @@ fn row_accessibility_value(r: &Row) -> String {
 
 pub(crate) enum TextStyle {
     LargeTitle,
+    Headline,
     Subheadline,
     Body,
     Callout,
@@ -615,14 +622,17 @@ fn weight(w: Weight) -> NSFontWeight {
 }
 
 fn style_ref(style: TextStyle) -> &'static objc2_app_kit::NSFontTextStyle {
-    match style {
-        TextStyle::LargeTitle => NSFontTextStyleLargeTitle,
-        TextStyle::Subheadline => NSFontTextStyleSubheadline,
-        TextStyle::Body => NSFontTextStyleBody,
-        TextStyle::Callout => objc2_app_kit::NSFontTextStyleCallout,
-        TextStyle::Footnote => NSFontTextStyleFootnote,
-        TextStyle::Caption1 => NSFontTextStyleCaption1,
-        TextStyle::Caption2 => objc2_app_kit::NSFontTextStyleCaption2,
+    unsafe {
+        match style {
+            TextStyle::LargeTitle => NSFontTextStyleLargeTitle,
+            TextStyle::Headline => objc2_app_kit::NSFontTextStyleHeadline,
+            TextStyle::Subheadline => NSFontTextStyleSubheadline,
+            TextStyle::Body => NSFontTextStyleBody,
+            TextStyle::Callout => objc2_app_kit::NSFontTextStyleCallout,
+            TextStyle::Footnote => NSFontTextStyleFootnote,
+            TextStyle::Caption1 => NSFontTextStyleCaption1,
+            TextStyle::Caption2 => objc2_app_kit::NSFontTextStyleCaption2,
+        }
     }
 }
 

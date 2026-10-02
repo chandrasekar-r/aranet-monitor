@@ -181,7 +181,9 @@ impl ChartView {
         let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
         view.setAccessibilityElement(true);
         view.setAccessibilityLabel(Some(&NSString::from_str("CO₂ history chart")));
-        view.setAccessibilityValue(Some(&NSString::from_str(&view.ivars().accessibility_summary)));
+        unsafe {
+            view.setAccessibilityValue(Some(&NSString::from_str(&view.ivars().accessibility_summary)));
+        }
         view.setAccessibilityRoleDescription(Some(&NSString::from_str("chart")));
         view
     }
@@ -271,7 +273,9 @@ impl RowView {
         let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
         view.setAccessibilityElement(true);
         view.setAccessibilityLabel(Some(&NSString::from_str(accessibility_label)));
-        view.setAccessibilityValue(Some(&NSString::from_str(accessibility_value)));
+        unsafe {
+            view.setAccessibilityValue(Some(&NSString::from_str(accessibility_value)));
+        }
         view.setAccessibilityHelp(Some(&NSString::from_str("Click to pin to menu bar. Control-click for more actions.")));
         view.setAccessibilityRoleDescription(Some(&NSString::from_str("button")));
         let area = unsafe {

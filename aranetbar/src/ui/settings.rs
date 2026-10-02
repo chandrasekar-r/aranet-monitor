@@ -65,7 +65,7 @@ define_class!(
     #[thread_kind = MainThreadOnly]
     #[name = "ABSettingsPanelTarget"]
     #[ivars = PanelIvars]
-    struct PanelTarget;
+    pub struct PanelTarget;
 
     unsafe impl NSObjectProtocol for PanelTarget {}
 
@@ -299,7 +299,7 @@ impl Form {
 /// Presents settings in a dedicated window (sheet when `parent` is set).
 pub fn prompt(mtm: MainThreadMarker, parent: Option<&NSWindow>, c: &Config, error: Option<&str>) -> Reply {
     let (form_view, form, form_h) = build_form(mtm, c, error);
-    let target = {
+    let target: Retained<PanelTarget> = {
         let this = PanelTarget::alloc(mtm).set_ivars(PanelIvars {
             mtm,
             form: RefCell::new(Some(form)),
