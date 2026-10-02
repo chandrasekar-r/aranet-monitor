@@ -21,7 +21,7 @@ Two pieces, same idea:
 
 ## Building aranetbar
 
-Requires a Mac with Xcode command line tools and Rust.
+Requires **macOS 14 (Sonoma)** or later, Xcode command line tools, and Rust.
 
 ```sh
 cd aranetbar

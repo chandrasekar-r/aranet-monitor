@@ -185,6 +185,11 @@ impl App {
             }
             UiAction::Command(cmd) => match cmd {
                 Command::Quit => return false,
+                Command::About => self.ui.show_about(),
+                Command::ShowHistory => {
+                    self.ui.close();
+                    self.ui.show_history(&self.config.db_path, &self.config.log_path, &self.config.nicknames);
+                }
                 Command::AlertSettings => {
                     self.ui.close();
                     self.edit_alert_settings();

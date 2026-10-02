@@ -15,6 +15,25 @@ pub enum Tone {
     Muted,
 }
 
+/// SF Symbol paired with each air-quality tone (not color alone).
+pub fn tone_symbol(tone: Tone) -> &'static str {
+    match tone {
+        Tone::Good => "checkmark.circle.fill",
+        Tone::Warn => "exclamationmark.triangle.fill",
+        Tone::High => "xmark.octagon.fill",
+        Tone::Muted => "circle.dashed",
+    }
+}
+
+pub fn tone_state_label(tone: Tone) -> &'static str {
+    match tone {
+        Tone::Good => "Good air quality",
+        Tone::Warn => "Ventilate soon",
+        Tone::High => "Ventilate now",
+        Tone::Muted => "No recent data",
+    }
+}
+
 pub fn tone(co2: u16, t: &Thresholds) -> Tone {
     if co2 >= t.high_co2 {
         Tone::High
@@ -328,5 +347,11 @@ mod tests {
     fn thousands_separator() {
         assert_eq!(thousands(587), "587");
         assert_eq!(thousands(1040), "1,040");
+    }
+
+    #[test]
+    fn tone_symbols_for_accessibility() {
+        assert_eq!(tone_symbol(Tone::Good), "checkmark.circle.fill");
+        assert_eq!(tone_state_label(Tone::Warn), "Ventilate soon");
     }
 }
