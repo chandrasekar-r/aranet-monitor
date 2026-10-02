@@ -1,4 +1,0 @@
-module AranetBarShared {
-header "AranetBarShared-Swift.h"
-export *
-}

@@ -1,4 +1,0 @@
-module AranetBarIntentsBridge {
-header "AranetBarIntentsBridge-Swift.h"
-export *
-}
