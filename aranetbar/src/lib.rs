@@ -8,8 +8,12 @@ pub mod config;
 pub mod csvlog;
 pub mod db;
 pub mod history;
+pub mod shared_state;
 pub mod telegram;
 pub mod viewmodel;
+
+#[cfg(all(feature = "macos-app", target_os = "macos"))]
+pub mod integrations;
 
 #[cfg(all(feature = "macos-app", target_os = "macos"))]
 pub mod app;

@@ -1,6 +1,6 @@
 [package]
 name = "aranetbar"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 description = "macOS menu bar monitor for Aranet4 sensors"
 build = "build.rs"
@@ -29,7 +29,7 @@ macos-app = [
 ]
 
 [dependencies]
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 dirs = "7"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

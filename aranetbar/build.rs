@@ -6,6 +6,17 @@ fn main() {
     }
 
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+
+    cc::Build::new()
+        .file(format!("{manifest_dir}/macos/golden_gate_bridge.m"))
+        .flag("-fobjc-arc")
+        .include(format!("{manifest_dir}/macos"))
+        .compile("golden_gate_bridge");
+
+    println!("cargo:rustc-link-lib=framework=AppKit");
+    println!("cargo:rerun-if-changed=macos/golden_gate_bridge.m");
+    println!("cargo:rerun-if-changed=macos/golden_gate_bridge.h");
+
     let framework_dir = std::env::var("SPARKLE_FRAMEWORK_DIR")
         .unwrap_or_else(|_| format!("{manifest_dir}/macos/Frameworks"));
     let framework = format!("{framework_dir}/Sparkle.framework");
