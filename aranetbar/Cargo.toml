@@ -1,0 +1,29 @@
+[package]
+name = "aranetbar"
+version = "0.1.0"
+edition = "2024"
+description = "macOS menu bar monitor for Aranet4 sensors"
+
+[dependencies]
+block2 = "0.6"
+btleplug = "0.13"
+chrono = "0.4"
+dirs = "7"
+futures = "0.3"
+objc2 = "0.6"
+objc2-app-kit = "0.3"
+objc2-foundation = "0.3"
+objc2-service-management = "0.3"
+objc2-user-notifications = "0.3"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.151"
+tao = "0.37"
+tokio = { version = "1", features = ["rt", "time", "macros"] }
+toml = "1"
+ureq = "3.4.2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
