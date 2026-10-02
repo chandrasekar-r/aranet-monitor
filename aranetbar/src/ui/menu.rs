@@ -1,7 +1,7 @@
 //! Standard application menu for an accessory (menu bar) app.
 
 use super::{Command, views::Target};
-use objc2::{AllocAnyThread, MainThreadMarker};
+use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::sel;

@@ -35,7 +35,7 @@ define_class!(
             let path = self.ivars().log_path.borrow().clone();
             let panel = unsafe { NSSavePanel::savePanel(mtm) };
             panel.setTitle(Some(&NSString::from_str("Export readings")));
-            panel.setNameFieldStringValue(Some(&NSString::from_str("aranet-readings.csv")));
+            panel.setNameFieldStringValue(&NSString::from_str("aranet-readings.csv"));
             if panel.runModal() != objc2_app_kit::NSModalResponseOK {
                 return;
             }
