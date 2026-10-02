@@ -1,6 +1,6 @@
 //! Standard application menu for an accessory (menu bar) app.
 
-use super::{Command, views::Target};
+use super::{Command, menu_item, views::Target};
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
@@ -32,14 +32,7 @@ fn item(
     cmd: Command,
     key: &str,
 ) -> Retained<NSMenuItem> {
-    let item = unsafe {
-        NSMenuItem::initWithTitle_action_keyEquivalent(
-            NSMenuItem::alloc(mtm),
-            &NSString::from_str(title),
-            Some(action),
-            &NSString::from_str(key),
-        )
-    };
+    let item = menu_item(mtm, title, action, key);
     unsafe { item.setTarget(Some(target)) };
     item.setTag(cmd.tag());
     item

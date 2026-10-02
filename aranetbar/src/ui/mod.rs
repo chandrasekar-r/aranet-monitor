@@ -207,14 +207,7 @@ impl Ui {
     pub fn show_settings(&self, login_enabled: bool) {
         let menu = NSMenu::new(self.mtm);
         let add = |title: &str, cmd: Command, key: &str| {
-            let item = unsafe {
-                NSMenuItem::initWithTitle_action_keyEquivalent(
-                    NSMenuItem::alloc(self.mtm),
-                    &NSString::from_str(title),
-                    Some(sel!(menuPicked:)),
-                    &NSString::from_str(key),
-                )
-            };
+            let item = menu_item(self.mtm, title, sel!(menuPicked:), key);
             unsafe { item.setTarget(Some(&self.target)) };
             item.setTag(cmd.tag());
             menu.addItem(&item);
@@ -280,14 +273,7 @@ impl Ui {
     }
 
     fn sensor_item(&self, title: &str, action: objc2::runtime::Sel, name: &str) -> Retained<NSMenuItem> {
-        let item = unsafe {
-            NSMenuItem::initWithTitle_action_keyEquivalent(
-                NSMenuItem::alloc(self.mtm),
-                &NSString::from_str(title),
-                Some(action),
-                &NSString::new(),
-            )
-        };
+        let item = menu_item(self.mtm, title, action, "");
         unsafe {
             item.setTarget(Some(&self.target));
             item.setRepresentedObject(Some(&NSString::from_str(name)));
@@ -593,6 +579,19 @@ fn row_accessibility_value(r: &Row) -> String {
 }
 
 // ---------------------------------------------------------------- helpers
+
+pub(crate) fn menu_item(
+    mtm: MainThreadMarker,
+    title: &str,
+    action: objc2::runtime::Sel,
+    key: &str,
+) -> Retained<NSMenuItem> {
+    let item = NSMenuItem::new(mtm);
+    item.setTitle(&NSString::from_str(title));
+    unsafe { item.setAction(Some(action)) };
+    item.setKeyEquivalent(&NSString::from_str(key));
+    item
+}
 
 pub(crate) enum TextStyle {
     LargeTitle,
