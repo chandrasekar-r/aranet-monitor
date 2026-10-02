@@ -8,6 +8,7 @@ mod views;
 pub use settings::Reply as SettingsReply;
 
 use crate::aranet::short_name;
+use crate::integrations;
 use crate::viewmodel::{self, Hero, Row, Title, Tone, ViewModel, tone_state_label, tone_symbol};
 use block2::RcBlock;
 use objc2::rc::Retained;
@@ -21,6 +22,7 @@ use objc2_app_kit::{
     NSFontAttributeName, NSImage, NSImageScaling, NSImageView, NSMenu, NSMenuItem, NSPopover, NSPopoverBehavior,
     NSStatusBar, NSStatusItem, NSTextField, NSVariableStatusItemLength, NSView, NSViewController, NSVisualEffectBlendingMode,
     NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowStyleMask, NSEvent, NSEventMask,
+    NSAutoresizingMaskOptions,
     NSCellImagePosition,
 };
 use objc2_foundation::{NSAttributedString, NSDictionary, NSMutableAttributedString, NSPoint, NSRectEdge, NSSize, NSString};
@@ -89,7 +91,7 @@ pub struct Ui {
     mtm: MainThreadMarker,
     status_item: Retained<NSStatusItem>,
     popover: Retained<NSPopover>,
-    effect_root: Retained<NSVisualEffectView>,
+    effect_root: Retained<NSView>,
     content: Retained<FlippedView>,
     gear: Retained<NSButton>,
     target: Retained<Target>,
@@ -115,16 +117,10 @@ impl Ui {
             button.setAccessibilityLabel(Some(&NSString::from_str("AranetBar")));
         }
 
-        let effect_root = NSVisualEffectView::new(mtm);
-        effect_root.setMaterial(NSVisualEffectMaterial::Popover);
-        effect_root.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
-        effect_root.setState(NSVisualEffectState::Active);
+        let effect_root = popover_root(mtm);
 
         let content = FlippedView::new(mtm, rect(0.0, 0.0, W, 400.0));
-        content.setAutoresizingMask(
-            objc2_app_kit::NSAutoresizingMaskOptions::ViewWidthSizable
-                | objc2_app_kit::NSAutoresizingMaskOptions::ViewHeightSizable,
-        );
+        content.setAutoresizingMask(NSAutoresizingMaskOptions::ViewWidthSizable | NSAutoresizingMaskOptions::ViewHeightSizable);
         effect_root.addSubview(&content);
 
         let controller = NSViewController::new(mtm);
@@ -677,6 +673,22 @@ pub(crate) fn label(mtm: MainThreadMarker, text: &str, font: Retained<NSFont>, c
 fn symbol(name: &str, description: &str) -> Retained<NSImage> {
     NSImage::imageWithSystemSymbolName_accessibilityDescription(&NSString::from_str(name), Some(&NSString::from_str(description)))
         .unwrap_or_else(NSImage::new)
+}
+
+fn popover_root(mtm: MainThreadMarker) -> Retained<NSView> {
+    if let Some(raw) = NonNull::new(integrations::popover_root_view()) {
+        unsafe {
+            let view = Retained::<NSView>::from_raw(raw.cast());
+            view.setFrame(rect(0.0, 0.0, W, 400.0));
+            return view;
+        }
+    }
+    let effect = NSVisualEffectView::new(mtm);
+    effect.setMaterial(NSVisualEffectMaterial::Popover);
+    effect.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+    effect.setState(NSVisualEffectState::Active);
+    effect.setFrame(rect(0.0, 0.0, W, 400.0));
+    Retained::into_super(effect)
 }
 
 fn template_symbol(name: &str) -> Retained<NSImage> {

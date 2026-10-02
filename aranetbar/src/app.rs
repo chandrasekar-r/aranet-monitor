@@ -8,8 +8,10 @@ use crate::history::History;
 use crate::ui::{Command, SettingsReply, Ui, UiAction};
 use crate::viewmodel::{self, Inputs, Snapshot, thousands};
 use crate::db::Db;
+use crate::integrations;
+use crate::shared_state::{self, FocusAlertsMode, GoldenGateState};
 use crate::{csvlog, login, notify, telegram};
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use objc2::MainThreadMarker;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -47,6 +49,7 @@ pub struct App {
     telegram_error: Option<String>,
     ui: Ui,
     proxy: EventLoopProxy<UserEvent>,
+    golden_gate: GoldenGateState,
 }
 
 impl App {
@@ -64,6 +67,8 @@ impl App {
         });
 
         let db = Db::open(&config.db_path, &config.log_path).map_err(|e| eprintln!("database: {e}")).ok();
+        let mut golden_gate = shared_state::load();
+        golden_gate.pinned_sensor = config.pinned.clone();
         let mut app = Self {
             history: History::load(&config.log_path, Local::now()),
             db,
@@ -75,6 +80,7 @@ impl App {
             telegram_error: None,
             ui,
             proxy,
+            golden_gate,
         };
         app.sync_rooms();
         app.refresh();
@@ -143,6 +149,8 @@ impl App {
     }
 
     fn on_tick(&mut self) {
+        integrations::on_tick_snooze(&mut self.golden_gate);
+        self.golden_gate = integrations::sync_after_external_change(&self.golden_gate);
         let t = self.config.thresholds();
         let mut due = Vec::new();
         for (name, s) in &mut self.sensors {
@@ -285,9 +293,34 @@ impl App {
     }
 
     fn send_alert(&self, name: &str, alert: Alert, t: &Thresholds) {
+        if self.should_suppress_notification(name, &alert) {
+            return;
+        }
         let (title, body) = alert_text(name, self.config.nicknames.get(name), alert, t);
-        notify::send(name, &title, &body);
+        let filter = self.notification_filter_criteria(name);
+        notify::send_filtered(name, &title, &body, filter.as_deref());
         self.send_telegram(&self.config, &format!("{title}\n{body}"), false);
+    }
+
+    fn should_suppress_notification(&self, name: &str, alert: &Alert) -> bool {
+        if matches!(
+            alert,
+            Alert::Warn { .. } | Alert::High { .. } | Alert::Clear { .. }
+        ) && self.golden_gate.co2_alerts_snoozed(Utc::now())
+        {
+            return true;
+        }
+        if self.golden_gate.focus_alerts_mode == FocusAlertsMode::PinnedOnly && name != self.config.pinned {
+            return true;
+        }
+        false
+    }
+
+    fn notification_filter_criteria(&self, sensor: &str) -> Option<String> {
+        if self.golden_gate.focus_alerts_mode != FocusAlertsMode::PinnedOnly {
+            return None;
+        }
+        Some(format!("aranetbar:sensor:{sensor}"))
     }
 
     fn refresh(&mut self) {
@@ -319,6 +352,26 @@ impl App {
             telegram_error: self.telegram_error.clone(),
             notifications_ok: self.notifications_ok,
         });
+        let latest_co2 = self
+            .sensors
+            .get(&self.config.pinned)
+            .and_then(|s| s.reading)
+            .and_then(|r| r.co2);
+        let interval = self
+            .sensors
+            .get(&self.config.pinned)
+            .and_then(|s| s.reading)
+            .map(|r| r.interval)
+            .unwrap_or(300);
+        integrations::publish(
+            &mut self.golden_gate,
+            &vm,
+            &self.config.pinned,
+            &self.config.nicknames,
+            &self.config.db_path,
+            interval,
+            latest_co2,
+        );
         self.ui.render(vm);
     }
 }

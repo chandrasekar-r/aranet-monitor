@@ -19,6 +19,7 @@ Two pieces, same idea:
 - Launch-at-login via `SMAppService`
 - CSV export
 - In-app updates via [Sparkle 2](https://sparkle-project.org/) (automatic daily checks and **Check for Updates…** in the settings menu)
+- **macOS 26–27 (Golden Gate):** optional WidgetKit Control Center mute toggle, compact CO₂ widget, Siri / Spotlight sensor entities, Focus-based alert filtering, Liquid Glass popover (`NSGlassEffectView` on macOS 27+)
 
 ## Building aranetbar
 
@@ -41,6 +42,16 @@ open target/release/aranetbar
 ```
 
 Linux CI runs library tests only (`cargo test --lib`); the menu bar binary is macOS-only.
+
+### Golden Gate extensions (WidgetKit + App Intents)
+
+Swift extension sources live under `aranetbar/macos/GoldenGate/`. See **[aranetbar/macos/GoldenGate/README.md](aranetbar/macos/GoldenGate/README.md)** for:
+
+- Xcode targets (Control Center + widget extensions embedded in `AranetBar.app`)
+- App Group `group.com.20deg.aranetbar` and entitlements (`macos/AranetBar.entitlements`)
+- Signing notes for local ad-hoc vs Developer ID builds
+
+The Rust app writes `golden_gate_state.json` into the group container and calls `aranetbar_reload_control_center()` when snooze changes (see `macos/golden_gate_bridge.m`).
 
 macOS will ask for Bluetooth permission the first time — grant it in System Settings → Privacy & Security → Bluetooth.
 

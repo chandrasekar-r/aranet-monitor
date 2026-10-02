@@ -83,6 +83,11 @@ pub fn check(on_status: impl Fn(bool) + 'static) {
 
 /// Shows a notification. `thread` groups notifications (one per sensor).
 pub fn send(thread: &str, title: &str, body: &str) {
+    send_filtered(thread, title, body, None);
+}
+
+/// Like [`send`], with optional Focus Filter `filterCriteria` (macOS 12+).
+pub fn send_filtered(thread: &str, title: &str, body: &str, filter_criteria: Option<&str>) {
     if !in_bundle() {
         let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
         let script = format!("display notification \"{}\" with title \"{}\" sound name \"Glass\"", esc(body), esc(title));
@@ -94,8 +99,21 @@ pub fn send(thread: &str, title: &str, body: &str) {
     content.setTitle(&NSString::from_str(title));
     content.setBody(&NSString::from_str(body));
     content.setThreadIdentifier(&NSString::from_str(thread));
+    if let Some(criteria) = filter_criteria {
+        set_filter_criteria(&content, criteria);
+    }
     content.setSound(Some(&UNNotificationSound::defaultSound()));
     let id = NSString::from_str(&format!("{thread}-{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
     let request = UNNotificationRequest::requestWithIdentifier_content_trigger(&id, &content, None);
     UNUserNotificationCenter::currentNotificationCenter().addNotificationRequest_withCompletionHandler(&request, None);
+}
+
+fn set_filter_criteria(content: &UNMutableNotificationContent, criteria: &str) {
+    use objc2::msg_send;
+    use objc2::runtime::AnyObject;
+    let s = NSString::from_str(criteria);
+    let obj: &AnyObject = content.as_ref();
+    unsafe {
+        let _: () = msg_send![obj, setFilterCriteria: &*s];
+    }
 }

@@ -21,5 +21,13 @@ build_app_bundle() {
 		install_name_tool -add_rpath "@executable_path/../Frameworks" "$app/Contents/MacOS/aranetbar" 2>/dev/null || true
 	fi
 
-	codesign --force --deep --sign - --identifier com.20deg.aranetbar "$app"
+	if [ -f macos/AranetBar.entitlements ]; then
+		codesign --force --deep --sign - --identifier com.20deg.aranetbar --entitlements macos/AranetBar.entitlements "$app"
+	else
+		codesign --force --deep --sign - --identifier com.20deg.aranetbar "$app"
+	fi
+
+	if [ -x macos/GoldenGate/build-intents-bridge.sh ]; then
+		macos/GoldenGate/build-intents-bridge.sh "$app" || true
+	fi
 }
