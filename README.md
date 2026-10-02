@@ -23,9 +23,12 @@ Two pieces, same idea:
 
 Requires **macOS 14 (Sonoma)** or later, Xcode command line tools, and Rust.
 
+Pre-built **DMG** and **ZIP** for each tagged release are on the [GitHub Releases](https://github.com/chandrasekar-r/aranet-monitor/releases) page (built by CI on macOS).
+
 ```sh
 cd aranetbar
 ./bundle.sh          # builds release, signs ad-hoc, installs to ~/Applications
+./package-release.sh # builds target/AranetBar-v*.dmg and .zip (same as CI)
 ```
 
 Or manually:

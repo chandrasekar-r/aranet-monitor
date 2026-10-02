@@ -1,0 +1,40 @@
+name: macOS release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload (e.g. v0.2.0)"
+        required: true
+        default: "v0.2.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build DMG and ZIP
+        run: |
+          cd aranetbar
+          chmod +x build-app.sh package-release.sh
+          ./package-release.sh
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          files: |
+            aranetbar/target/AranetBar-v*.dmg
+            aranetbar/target/AranetBar-v*.zip
+          fail_on_unmatched_files: true
