@@ -21,6 +21,16 @@ Two pieces, same idea:
 - In-app updates via [Sparkle 2](https://sparkle-project.org/) (automatic daily checks and **Check for Updates…** in the settings menu)
 - **macOS 26–27 (Golden Gate):** optional WidgetKit Control Center mute toggle, compact CO₂ widget, Siri / Spotlight sensor entities, Focus-based alert filtering, Liquid Glass popover (`NSGlassEffectView` on macOS 27+)
 
+## Screenshots
+
+The menu bar readout — current CO₂ as a plain number between the system icons:
+
+![Menu bar readout showing 1,530 ppm](docs/images/aranetbar-statusitem.png)
+
+The popover — pinned sensor with history bars against your warning threshold, vitals, and every other sensor in the house:
+
+![AranetBar popover with a pinned sensor at 1,530 ppm, a red "ventilate now" badge, hourly history bars, and a multi-sensor list](docs/images/aranetbar-popover.png)
+
 ## Building aranetbar
 
 Requires **macOS 14 (Sonoma)** or later, Xcode command line tools, and Rust.
