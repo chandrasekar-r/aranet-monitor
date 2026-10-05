@@ -6,10 +6,18 @@ fn main() {
     }
 
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+    // Keep the C/ObjC objects on the same deployment target Rust links with
+    // (11.0 on aarch64-apple-darwin by default). A mismatch makes ld fail on
+    // ___isPlatformVersionAtLeast, which @available lowers to.
+    let deployment_target = std::env::var("MACOSX_DEPLOYMENT_TARGET")
+        .unwrap_or_else(|_| "11.0".to_string());
+    let min_flag = format!("-mmacosx-version-min={deployment_target}");
+    println!("cargo:rerun-if-env-changed=MACOSX_DEPLOYMENT_TARGET");
 
     cc::Build::new()
         .file(format!("{manifest_dir}/macos/golden_gate_bridge.m"))
         .flag("-fobjc-arc")
+        .flag(&min_flag)
         .include(format!("{manifest_dir}/macos"))
         .compile("golden_gate_bridge");
 
@@ -28,6 +36,7 @@ fn main() {
         );
         cc::Build::new()
             .file(format!("{manifest_dir}/macos/sparkle_updater_stub.c"))
+            .flag(&min_flag)
             .include(format!("{manifest_dir}/macos"))
             .compile("sparkle_updater");
         return;
@@ -36,6 +45,7 @@ fn main() {
     cc::Build::new()
         .file(format!("{manifest_dir}/macos/sparkle_updater.m"))
         .flag("-fobjc-arc")
+        .flag(&min_flag)
         .include(format!("{manifest_dir}/macos"))
         .flag(format!("-F{framework_dir}"))
         .compile("sparkle_updater");
