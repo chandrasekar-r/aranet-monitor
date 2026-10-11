@@ -10,7 +10,8 @@ Two pieces, same idea:
 ## aranetbar features
 
 - Passive listening to Aranet4 advertisements — no pairing, no cloud
-- Live menu bar readout with sparkline history
+- Live menu bar readout: air-quality symbol plus ppm, tinted when the level is Fair or Poor
+- Popover with a CO₂-colored air animation, rounded ppm readout, 400–2,000+ gauge, and chips for temperature, humidity, pressure, and battery
 - CO₂, temperature, humidity, pressure and battery
 - Configurable warning / high / clear thresholds with hysteresis
 - macOS notifications via `UNUserNotificationCenter`
@@ -23,13 +24,13 @@ Two pieces, same idea:
 
 ## Screenshots
 
-The menu bar readout — current CO₂ as a plain number between the system icons:
+The menu bar readout — an air-quality symbol and the live ppm, tinted when the air needs attention:
 
-![Menu bar readout showing 1,530 ppm](docs/images/aranetbar-statusitem.png)
+![Menu bar readout showing 1,180 ppm in orange](docs/images/aranetbar-statusitem.png)
 
-The popover — pinned sensor with history bars against your warning threshold, vitals, and every other sensor in the house:
+The popover — room name, drifting air, rounded CO₂ readout with a Fair pill, a 400–2,000+ gauge, and temperature, humidity, pressure, and battery:
 
-![AranetBar popover with a pinned sensor at 1,530 ppm, a red "ventilate now" badge, hourly history bars, and a multi-sensor list](docs/images/aranetbar-popover.png)
+![AranetBar popover with a pinned sensor at 1,180 ppm, a Fair pill, a gauge, and four sensor chips](docs/images/aranetbar-popover.png)
 
 ## Building aranetbar
 

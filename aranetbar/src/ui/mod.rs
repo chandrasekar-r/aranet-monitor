@@ -9,29 +9,37 @@ pub use settings::Reply as SettingsReply;
 
 use crate::aranet::short_name;
 use crate::integrations;
-use crate::viewmodel::{self, Hero, Row, Title, Tone, ViewModel, tone_state_label, tone_symbol};
+use crate::viewmodel::{
+    self, Footer, Hero, Row, Title, Tone, ViewModel, gauge_fraction, menu_symbol, tone_state_label,
+    tone_symbol, wave_intensity,
+};
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, MainThreadOnly, sel};
 use objc2_app_kit::{
-    NSAccessibility, NSAccessibilityLayoutChangedNotification, NSAlert, NSAlertFirstButtonReturn, NSApplication,
-    NSBackingStoreType, NSButton, NSColor, NSControlStateValueOff, NSControlStateValueOn, NSFont, NSFontTextStyleBody,
-    NSFontTextStyleCaption1, NSFontTextStyleFootnote, NSFontTextStyleLargeTitle, NSFontTextStyleSubheadline,
-    NSFontWeight, NSFontWeightMedium, NSFontWeightRegular, NSFontWeightSemibold, NSForegroundColorAttributeName,
-    NSFontAttributeName, NSImage, NSImageScaling, NSImageView, NSMenu, NSMenuItem, NSPopover, NSPopoverBehavior,
-    NSStatusBar, NSStatusItem, NSTextField, NSVariableStatusItemLength, NSView, NSViewController, NSVisualEffectBlendingMode,
-    NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowStyleMask, NSEvent, NSEventMask,
-    NSAutoresizingMaskOptions,
-    NSCellImagePosition,
+    NSAccessibility, NSAccessibilityLayoutChangedNotification, NSAlert, NSAlertFirstButtonReturn,
+    NSApplication, NSAutoresizingMaskOptions, NSBackingStoreType, NSCellImagePosition, NSColor,
+    NSControlStateValueOff, NSControlStateValueOn, NSEvent, NSEventMask, NSFont,
+    NSFontAttributeName, NSFontDescriptorSystemDesignRounded, NSFontTextStyleBody,
+    NSFontTextStyleCaption1, NSFontTextStyleFootnote, NSFontTextStyleLargeTitle,
+    NSFontTextStyleSubheadline, NSFontWeight, NSFontWeightMedium, NSFontWeightRegular,
+    NSFontWeightSemibold, NSForegroundColorAttributeName, NSImage, NSImageScaling, NSImageView,
+    NSMenu, NSMenuItem, NSPopover, NSPopoverBehavior, NSStatusBar, NSStatusItem, NSTextField,
+    NSVariableStatusItemLength, NSView, NSViewController, NSVisualEffectBlendingMode,
+    NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowStyleMask,
 };
-use objc2_foundation::{NSAttributedString, NSDictionary, NSMutableAttributedString, NSPoint, NSRectEdge, NSSize, NSString};
-use std::cell::RefCell;
+use objc2_foundation::{
+    NSAttributedString, NSDictionary, NSMutableAttributedString, NSPoint, NSRectEdge, NSSize,
+    NSString,
+};
+use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use views::{
-    ChartView, FlippedView, RowView, ShapeView, Target, banner_fill_color, rect, tone_color,
+    FlippedView, GaugeView, HairlineView, IconButton, PlateView, RowView, ShapeView, SpinView,
+    Target, WaveView, banner_fill_color, rect, sync_popover_material, tone_color,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,8 +92,9 @@ const W: f64 = 340.0;
 const PAD: f64 = 16.0;
 const INNER: f64 = W - 2.0 * PAD;
 const GAP_S: f64 = 8.0;
-const GAP_M: f64 = 16.0;
-const ROW_H: f64 = 32.0;
+const GAP: f64 = 16.0;
+const ROW_H: f64 = 36.0;
+const POPOVER_RADIUS: f64 = 16.0;
 
 pub struct Ui {
     mtm: MainThreadMarker,
@@ -93,7 +102,10 @@ pub struct Ui {
     popover: Retained<NSPopover>,
     effect_root: Retained<NSView>,
     content: Retained<FlippedView>,
-    gear: Retained<NSButton>,
+    gear: Retained<IconButton>,
+    gauge_pos: Rc<Cell<f64>>,
+    gauge_vel: Rc<Cell<f64>>,
+    wave_phase: Rc<Cell<f64>>,
     target: Retained<Target>,
     sheet_parent: Retained<NSWindow>,
     escape_monitor: RefCell<Option<Retained<AnyObject>>>,
@@ -108,7 +120,8 @@ impl Ui {
         let target = Target::new(mtm, Box::new(move |a| cb(a)));
         menu::install(mtm, &target);
 
-        let status_item = NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength);
+        let status_item =
+            NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength);
         if let Some(button) = status_item.button(mtm) {
             unsafe {
                 button.setTarget(Some(&target));
@@ -120,7 +133,10 @@ impl Ui {
         let effect_root = popover_root(mtm);
 
         let content = FlippedView::new(mtm, rect(0.0, 0.0, W, 400.0));
-        content.setAutoresizingMask(NSAutoresizingMaskOptions::ViewWidthSizable | NSAutoresizingMaskOptions::ViewHeightSizable);
+        content.setAutoresizingMask(
+            NSAutoresizingMaskOptions::ViewWidthSizable
+                | NSAutoresizingMaskOptions::ViewHeightSizable,
+        );
         effect_root.addSubview(&content);
 
         let controller = NSViewController::new(mtm);
@@ -129,14 +145,15 @@ impl Ui {
         popover.setBehavior(NSPopoverBehavior::Transient);
         popover.setContentViewController(Some(&controller));
 
-        let gear_image = symbol("gearshape", "Settings");
-        let gear = unsafe {
-            NSButton::buttonWithImage_target_action(&gear_image, Some(&target), Some(sel!(gearClicked:)), mtm)
-        };
-        gear.setBordered(false);
-        gear.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
-        gear.setAccessibilityLabel(Some(&NSString::from_str("Settings")));
-        gear.setAccessibilityHelp(Some(&NSString::from_str("Opens the settings menu")));
+        let gear_action = on_action.clone();
+        let gear = IconButton::new(
+            mtm,
+            rect(0.0, 0.0, 28.0, 28.0),
+            "slider.horizontal.3",
+            "Settings",
+            "Opens the settings menu",
+            Box::new(move || gear_action(UiAction::Settings)),
+        );
 
         let sheet_parent = unsafe {
             NSWindow::initWithContentRect_styleMask_backing_defer(
@@ -155,6 +172,9 @@ impl Ui {
             effect_root,
             content,
             gear,
+            gauge_pos: Rc::new(Cell::new(0.0)),
+            gauge_vel: Rc::new(Cell::new(0.0)),
+            wave_phase: Rc::new(Cell::new(0.4)),
             target,
             sheet_parent,
             escape_monitor: RefCell::new(None),
@@ -180,10 +200,16 @@ impl Ui {
             self.close();
             return;
         }
-        let Some(button) = self.status_item.button(self.mtm) else { return };
+        let Some(button) = self.status_item.button(self.mtm) else {
+            return;
+        };
         self.layout();
         NSApplication::sharedApplication(self.mtm).activate();
-        self.popover.showRelativeToRect_ofView_preferredEdge(button.bounds(), &button, NSRectEdge::MinY);
+        self.popover.showRelativeToRect_ofView_preferredEdge(
+            button.bounds(),
+            &button,
+            NSRectEdge::MinY,
+        );
         self.install_escape_monitor();
         if self.vm.as_ref().is_some_and(|vm| vm.banner.is_some()) {
             unsafe {
@@ -211,14 +237,22 @@ impl Ui {
         };
         if let Some(hero) = self.vm.as_ref().map(|vm| &vm.hero) {
             let label = hero.nickname.as_deref().unwrap_or(&hero.id);
-            menu.addItem(&self.sensor_item(&format!("Rename “{label}”…"), sel!(renameSensor:), &hero.name));
+            menu.addItem(&self.sensor_item(
+                &format!("Rename “{label}”…"),
+                sel!(renameSensor:),
+                &hero.name,
+            ));
             menu.addItem(&NSMenuItem::separatorItem(self.mtm));
         }
         add("Alert settings…", Command::AlertSettings, ",");
         add("History…", Command::ShowHistory, "h");
         menu.addItem(&NSMenuItem::separatorItem(self.mtm));
         let login = add("Start at login", Command::ToggleLogin, "");
-        login.setState(if login_enabled { NSControlStateValueOn } else { NSControlStateValueOff });
+        login.setState(if login_enabled {
+            NSControlStateValueOn
+        } else {
+            NSControlStateValueOff
+        });
         add("Open readings log", Command::OpenLog, "");
         add("Show database in Finder", Command::ShowData, "");
         add("Open config file", Command::OpenConfig, "");
@@ -238,10 +272,19 @@ impl Ui {
         menu.addItem(&NSMenuItem::separatorItem(self.mtm));
         add("Quit AranetBar", Command::Quit, "q");
         let h = self.gear.bounds().size.height;
-        menu.popUpMenuPositioningItem_atLocation_inView(None, NSPoint::new(0.0, h + 4.0), Some(&self.gear));
+        menu.popUpMenuPositioningItem_atLocation_inView(
+            None,
+            NSPoint::new(0.0, h + 4.0),
+            Some(&self.gear),
+        );
     }
 
-    pub fn show_history(&self, db_path: &Path, log_path: &Path, nicknames: &std::collections::BTreeMap<String, String>) {
+    pub fn show_history(
+        &self,
+        db_path: &Path,
+        log_path: &Path,
+        nicknames: &std::collections::BTreeMap<String, String>,
+    ) {
         let window = history_window::show(self.mtm, db_path, log_path, nicknames);
         self.history_windows.borrow_mut().push(window);
     }
@@ -249,9 +292,10 @@ impl Ui {
     pub fn show_about(&self) {
         let alert = NSAlert::new(self.mtm);
         alert.setMessageText(&NSString::from_str("AranetBar"));
-        alert.setInformativeText(&NSString::from_str(
-            "Passive Aranet4 CO₂ monitor for the menu bar.\n\nVersion 0.2.1",
-        ));
+        alert.setInformativeText(&NSString::from_str(&format!(
+            "Passive Aranet4 CO₂ monitor for the menu bar.\n\nVersion {}",
+            env!("CARGO_PKG_VERSION"),
+        )));
         alert.addButtonWithTitle(&NSString::from_str("OK"));
         NSApplication::sharedApplication(self.mtm).activate();
         alert.runModal();
@@ -275,11 +319,20 @@ impl Ui {
         (alert.runModal() == NSAlertFirstButtonReturn).then(|| field.stringValue().to_string())
     }
 
-    pub fn prompt_alert_settings(&self, c: &crate::config::Config, error: Option<&str>) -> SettingsReply {
+    pub fn prompt_alert_settings(
+        &self,
+        c: &crate::config::Config,
+        error: Option<&str>,
+    ) -> SettingsReply {
         settings::prompt(self.mtm, Some(&self.sheet_parent), c, error)
     }
 
-    fn sensor_item(&self, title: &str, action: objc2::runtime::Sel, name: &str) -> Retained<NSMenuItem> {
+    fn sensor_item(
+        &self,
+        title: &str,
+        action: objc2::runtime::Sel,
+        name: &str,
+    ) -> Retained<NSMenuItem> {
         let item = menu_item(self.mtm, title, action, "");
         unsafe {
             item.setTarget(Some(&self.target));
@@ -296,17 +349,29 @@ impl Ui {
     }
 
     fn set_title(&self, vm: &ViewModel) {
-        let Some(button) = self.status_item.button(self.mtm) else { return };
+        let Some(button) = self.status_item.button(self.mtm) else {
+            return;
+        };
         let (symbol_name, value, tone) = match &vm.title {
-            Title::Reading { tone, text } => (tone_symbol(*tone), text.as_str(), Some(*tone)),
+            Title::Reading { tone, text } => (menu_symbol(*tone), text.as_str(), Some(*tone)),
             Title::NoData => ("circle.dashed", "—", None),
             Title::Bluetooth => ("antenna.radiowaves.left.and.right.slash", "BT", None),
         };
         let img = template_symbol(symbol_name);
         button.setImage(Some(&img));
         button.setImagePosition(NSCellImagePosition::ImageLeft);
+        // Fresh air stays in the menu-bar label color. Warn and high pick up the level color.
+        let color = match tone {
+            Some(Tone::Warn) => NSColor::systemOrangeColor(),
+            Some(Tone::High) => NSColor::systemRedColor(),
+            _ => NSColor::labelColor(),
+        };
         let text = NSMutableAttributedString::new();
-        text.appendAttributedString(&attributed(value, &NSColor::labelColor(), &mono_style(TextStyle::Subheadline, weight(Weight::Medium))));
+        text.appendAttributedString(&attributed(
+            value,
+            &color,
+            &mono_style(TextStyle::Subheadline, weight(Weight::Medium)),
+        ));
         button.setAttributedTitle(&text);
 
         let ax_value = match &vm.title {
@@ -317,7 +382,6 @@ impl Ui {
         unsafe {
             button.setAccessibilityValue(Some(&NSString::from_str(&ax_value)));
         }
-        let _ = tone;
     }
 
     fn layout(&self) {
@@ -326,15 +390,26 @@ impl Ui {
         for v in c.subviews().iter() {
             v.removeFromSuperview();
         }
+        sync_popover_material(c);
         let mut y = PAD;
 
         if let Some((lead, rest)) = &vm.banner {
-            y = self.banner(c, y, lead, rest) + GAP_M;
+            y = self.banner(c, y, lead, rest) + GAP;
         }
-        y = self.hero(c, y, &vm.hero);
+        y = self.header(c, y, &vm.hero);
+        y = self.wave(c, y, &vm.hero);
+        y = self.readout(c, y, &vm.hero);
+        y = self.gauge(c, y, &vm.hero);
+        y = self.chips(c, y, &vm.hero.stats);
         y = self.others(c, y, &vm.others);
+        y = self.footer(c, y, &vm.footer);
 
-        let size = NSSize::new(W, y + PAD);
+        let total_h = y + PAD;
+        add(
+            c,
+            &HairlineView::new(self.mtm, rect(0.0, 0.0, W, total_h), POPOVER_RADIUS),
+        );
+        let size = NSSize::new(W, total_h);
         c.setFrameSize(size);
         self.effect_root.setFrameSize(size);
         self.popover.setContentSize(size);
@@ -344,14 +419,32 @@ impl Ui {
         let text_w = INNER - 48.0;
         let label = NSTextField::wrappingLabelWithString(&NSString::new(), self.mtm);
         let s = NSMutableAttributedString::new();
-        s.appendAttributedString(&attributed(lead, &NSColor::labelColor(), &styled(TextStyle::Subheadline)));
-        s.appendAttributedString(&attributed(&format!(" {rest}"), &NSColor::labelColor(), &styled(TextStyle::Body)));
+        s.appendAttributedString(&attributed(
+            lead,
+            &NSColor::labelColor(),
+            &styled(TextStyle::Subheadline),
+        ));
+        s.appendAttributedString(&attributed(
+            &format!(" {rest}"),
+            &NSColor::labelColor(),
+            &styled(TextStyle::Body),
+        ));
         label.setAttributedStringValue(&s);
         label.setPreferredMaxLayoutWidth(text_w);
-        let text_h = label.sizeThatFits(NSSize::new(text_w, 1000.0)).height.ceil();
-        let h = text_h + GAP_M;
-        add(c, &ShapeView::new(self.mtm, rect(PAD, y, INNER, h), banner_fill_color(), 8.0));
-        let icon = image_view(self.mtm, "exclamationmark.triangle.fill", &NSColor::systemOrangeColor());
+        let text_h = label
+            .sizeThatFits(NSSize::new(text_w, 1000.0))
+            .height
+            .ceil();
+        let h = text_h + GAP;
+        add(
+            c,
+            &ShapeView::new(self.mtm, rect(PAD, y, INNER, h), banner_fill_color(), 12.0),
+        );
+        let icon = image_view(
+            self.mtm,
+            "exclamationmark.triangle.fill",
+            &NSColor::systemOrangeColor(),
+        );
         icon.setFrame(rect(PAD + GAP_S, y + GAP_S, 16.0, 16.0));
         add(c, &icon);
         label.setFrame(rect(PAD + 32.0, y + GAP_S - 1.0, text_w, text_h));
@@ -360,137 +453,222 @@ impl Ui {
         y + h
     }
 
-    fn hero(&self, c: &NSView, mut y: f64, h: &Hero) -> f64 {
+    fn header(&self, c: &NSView, y: f64, h: &Hero) -> f64 {
         let m = self.mtm;
-        let id = label(m, &h.id, styled(TextStyle::Subheadline), &NSColor::labelColor());
-        place(c, &id, PAD, y + 4.0);
-        if let Some(nick) = &h.nickname {
-            let n = label(m, &format!("· {nick}"), styled(TextStyle::Body), &NSColor::secondaryLabelColor());
-            place(c, &n, PAD + width(&id) + 4.0, y + 4.0);
-        }
-        self.gear.setFrame(rect(W - PAD - 28.0, y, 28.0, 28.0));
-        add(c, &self.gear);
-        y += 32.0;
+        let icon = image_view(m, "aqi.medium", &NSColor::secondaryLabelColor());
+        icon.setFrame(rect(PAD, y + 8.0, 16.0, 16.0));
+        add(c, &icon);
+        let room = h.nickname.as_deref().unwrap_or(h.id.as_str());
+        let name = label(
+            m,
+            room,
+            styled(TextStyle::Subheadline),
+            &NSColor::secondaryLabelColor(),
+        );
+        place(c, &name, PAD + 22.0, y + (32.0 - height(&name)) / 2.0);
+        name.setAccessibilityLabel(Some(&NSString::from_str(&format!("Room {room}"))));
 
-        let big = label(m, &h.co2, mono_style(TextStyle::LargeTitle, weight(Weight::Semibold)), &NSColor::labelColor());
+        let history = self.on_action.clone();
+        let button = IconButton::new(
+            m,
+            rect(W - PAD - 32.0, y, 32.0, 32.0),
+            "chart.xyaxis.line",
+            "History",
+            "Shows CO₂ history",
+            Box::new(move || history(UiAction::Command(Command::ShowHistory))),
+        );
+        add(c, &button);
+        y + 32.0 + GAP
+    }
+
+    fn wave(&self, c: &NSView, y: f64, h: &Hero) -> f64 {
+        let wave_h = 96.0;
+        let summary = format!("{}, {}", tone_state_label(h.tone), h.updated);
+        let view = WaveView::new(
+            self.mtm,
+            rect(PAD, y, INNER, wave_h),
+            Rc::clone(&self.wave_phase),
+            h.tone,
+            wave_intensity(h.co2_ppm),
+            summary,
+        );
+        add(c, &view);
+        y + wave_h + GAP
+    }
+
+    fn readout(&self, c: &NSView, y: f64, h: &Hero) -> f64 {
+        let m = self.mtm;
+        let size = (styled(TextStyle::LargeTitle).pointSize() * 2.0).clamp(46.0, 58.0);
+        let big = label(
+            m,
+            &h.co2,
+            rounded_font(size, weight(Weight::Semibold)),
+            &NSColor::labelColor(),
+        );
         place(c, &big, PAD, y);
         big.setAccessibilityLabel(Some(&NSString::from_str("CO₂")));
         unsafe {
             big.setAccessibilityValue(Some(&NSString::from_str(&format!("{} ppm", h.co2))));
         }
         let big_h = big.frame().size.height;
-        let unit = label(m, "ppm CO₂", styled(TextStyle::Footnote), &NSColor::secondaryLabelColor());
-        place(c, &unit, PAD + width(&big) + 4.0, y + big_h - unit.frame().size.height - 8.0);
-        if !h.pill.is_empty() {
-            self.pill(c, y + (big_h - 24.0) / 2.0, h.pill, h.tone);
-        }
-        y += big_h;
-        let updated = label(m, &h.updated, font(TextStyle::Caption1), &NSColor::tertiaryLabelColor());
-        place(c, &updated, PAD, y);
-        y += height(&updated) + GAP_M;
-
-        let chart_h = 52.0;
-        let bar_w = (INNER / 18.0 - 2.0).max(3.0);
-        let summary = format!(
-            "CO₂ over the last 3 hours. Warning threshold {} ppm.",
-            viewmodel::thousands(h.warn_co2)
-        );
-        let chart = ChartView::new(m, rect(PAD, y, INNER, chart_h), h.chart.clone(), bar_w, h.warn_co2, summary);
-        add(c, &chart);
-        let (lo, hi) = views::chart_scale(&h.chart);
-        let line_from_top = chart_h - ((h.warn_co2 as f64 - lo) / (hi - lo)).clamp(0.0, 1.0) * chart_h;
-        let thr = label(
+        let unit = label(
             m,
-            &viewmodel::thousands(h.warn_co2),
-            mono_style(TextStyle::Caption2, weight(Weight::Regular)),
-            &NSColor::tertiaryLabelColor(),
+            "ppm",
+            rounded_font((size * 0.42).clamp(18.0, 24.0), weight(Weight::Medium)),
+            &NSColor::secondaryLabelColor(),
         );
-        place(c, &thr, W - PAD - width(&thr), y + line_from_top - height(&thr) - 1.0);
-        if h.chart.is_empty() {
-            let empty = label(m, "No readings in the last 3 hours", font(TextStyle::Caption1), &NSColor::tertiaryLabelColor());
-            place(c, &empty, PAD + (INNER - width(&empty)) / 2.0, y + chart_h - height(&empty) - 4.0);
+        // Flipped coordinates: the same origin puts the unit's top against the number's top.
+        place(c, &unit, PAD + width(&big) + 6.0, y + 1.0);
+        if !h.pill.is_empty() {
+            self.pill(c, y + (big_h - 28.0) / 2.0, h.pill, h.tone);
         }
-        y += chart_h + GAP_S;
-        let axis = ["3 h ago", "2 h", "1 h", "Now"];
-        for (i, text) in axis.iter().enumerate() {
-            let l = label(m, text, font(TextStyle::Caption2), &NSColor::tertiaryLabelColor());
-            let x = match i {
-                0 => PAD,
-                3 => W - PAD - width(&l),
-                _ => PAD + INNER * i as f64 / 3.0 - width(&l) / 2.0,
-            };
-            place(c, &l, x, y);
-        }
-        y += GAP_M + GAP_M;
-
-        if !h.stats.is_empty() {
-            let gap = GAP_S - 2.0;
-            let cw = (INNER - 3.0 * gap) / 4.0;
-            for (i, s) in h.stats.iter().enumerate() {
-                let x = PAD + i as f64 * (cw + gap);
-                add(c, &ShapeView::quaternary_fill(m, rect(x, y, cw, 48.0), 8.0));
-                let icon = image_view(m, s.symbol, &NSColor::secondaryLabelColor());
-                icon.setFrame(rect(x + GAP_S, y + GAP_S, 12.0, 12.0));
-                add(c, &icon);
-                let cap = label(m, s.caption, font(TextStyle::Caption2), &NSColor::secondaryLabelColor());
-                place(c, &cap, x + 24.0, y + 6.0);
-                let v = label(m, &s.value, mono_style(TextStyle::Subheadline, weight(Weight::Semibold)), &NSColor::labelColor());
-                place(c, &v, x + GAP_S, y + 22.0);
-            }
-            y += 48.0 + GAP_M;
-        }
-        y
+        y + big_h + GAP
     }
 
     fn pill(&self, c: &NSView, y: f64, text: &str, tone: Tone) {
-        let color = tone_color(tone);
-        let l = label(self.mtm, text, styled(TextStyle::Footnote), &color);
-        let sym = image_view(self.mtm, tone_symbol(tone), &color);
-        sym.setFrame(rect(0.0, 0.0, 14.0, 14.0));
+        let m = self.mtm;
+        let color = if tone == Tone::Muted {
+            NSColor::secondaryLabelColor()
+        } else {
+            tone_color(tone)
+        };
+        let l = label(m, text, styled(TextStyle::Footnote), &NSColor::labelColor());
+        let sym = image_view(m, tone_symbol(tone), &color);
+        let h = 28.0;
         let w = GAP_S + 14.0 + 6.0 + width(&l) + GAP_S;
         let x = W - PAD - w;
-        add(c, &ShapeView::new(self.mtm, rect(x, y, w, 24.0), color.colorWithAlphaComponent(0.16), 12.0));
-        sym.setFrame(rect(x + GAP_S, y + 5.0, 14.0, 14.0));
+        add(c, &PlateView::new(m, rect(x, y, w, h), h / 2.0));
+        sym.setFrame(rect(x + GAP_S, y + (h - 14.0) / 2.0, 14.0, 14.0));
         add(c, &sym);
-        place(c, &l, x + GAP_S + 18.0, y + (24.0 - height(&l)) / 2.0);
+        place(c, &l, x + GAP_S + 18.0, y + (h - height(&l)) / 2.0);
         l.setAccessibilityLabel(Some(&NSString::from_str(text)));
         unsafe {
             l.setAccessibilityValue(Some(&NSString::from_str(tone_state_label(tone))));
         }
     }
 
-    fn others(&self, c: &NSView, mut y: f64, rows: &[Row]) -> f64 {
+    fn gauge(&self, c: &NSView, y: f64, h: &Hero) -> f64 {
         let m = self.mtm;
-        y += GAP_S;
-        let head = label(m, "Other sensors", styled(TextStyle::Footnote), &NSColor::secondaryLabelColor());
-        place(c, &head, PAD, y);
-        if !rows.is_empty() {
-            let hint = label(
+        let track_h = 22.0;
+        let target = h.co2_ppm.map(gauge_fraction).unwrap_or(0.0);
+        let summary = match h.co2_ppm {
+            Some(ppm) => format!(
+                "{} ppm, scale {} to {}.",
+                viewmodel::thousands(ppm),
+                viewmodel::GAUGE_LO,
+                viewmodel::GAUGE_HI
+            ),
+            None => format!(
+                "No CO₂ reading. Scale {} to {}.",
+                viewmodel::GAUGE_LO,
+                viewmodel::GAUGE_HI
+            ),
+        };
+        let gauge = GaugeView::new(
+            m,
+            rect(PAD, y, INNER, track_h),
+            Rc::clone(&self.gauge_pos),
+            Rc::clone(&self.gauge_vel),
+            target,
+            h.tone,
+            gauge_fraction(h.warn_co2),
+            summary,
+        );
+        add(c, &gauge);
+        let labels_y = y + track_h + 4.0;
+        let lo = label(
+            m,
+            &viewmodel::thousands(viewmodel::GAUGE_LO),
+            mono_style(TextStyle::Caption2, weight(Weight::Regular)),
+            &NSColor::tertiaryLabelColor(),
+        );
+        let hi = label(
+            m,
+            &format!("{}+", viewmodel::thousands(viewmodel::GAUGE_HI)),
+            mono_style(TextStyle::Caption2, weight(Weight::Regular)),
+            &NSColor::tertiaryLabelColor(),
+        );
+        place(c, &lo, PAD, labels_y);
+        place(c, &hi, W - PAD - width(&hi), labels_y);
+        labels_y + height(&lo) + GAP
+    }
+
+    fn chips(&self, c: &NSView, y: f64, stats: &[crate::viewmodel::Stat]) -> f64 {
+        if stats.is_empty() {
+            return y;
+        }
+        let m = self.mtm;
+        let gap = 8.0;
+        let n = stats.len() as f64;
+        let cw = (INNER - (n - 1.0) * gap) / n;
+        let cap_probe = label(
+            m,
+            "Humidity",
+            font(TextStyle::Caption1),
+            &NSColor::secondaryLabelColor(),
+        );
+        let val_probe = label(
+            m,
+            "00.0°",
+            mono_style(TextStyle::Subheadline, weight(Weight::Semibold)),
+            &NSColor::labelColor(),
+        );
+        let ch = (10.0 + 16.0 + 4.0 + height(&cap_probe) + 2.0 + height(&val_probe) + 10.0).ceil();
+        for (i, s) in stats.iter().enumerate() {
+            let x = PAD + i as f64 * (cw + gap);
+            add(c, &PlateView::new(m, rect(x, y, cw, ch), 12.0));
+            let icon = image_view(m, s.symbol, &NSColor::secondaryLabelColor());
+            icon.setFrame(rect(x + 10.0, y + 10.0, 15.0, 15.0));
+            icon.setAccessibilityElement(false);
+            add(c, &icon);
+            let cap = label(
                 m,
-                "Click to pin · Control-click for menu",
+                s.caption,
                 font(TextStyle::Caption1),
-                &NSColor::tertiaryLabelColor(),
+                &NSColor::secondaryLabelColor(),
             );
-            place(c, &hint, W - PAD - width(&hint), y);
+            place(c, &cap, x + 10.0, y + 28.0);
+            let value = label(
+                m,
+                &s.value,
+                mono_style(TextStyle::Subheadline, weight(Weight::Semibold)),
+                &NSColor::labelColor(),
+            );
+            place(c, &value, x + 10.0, y + 28.0 + height(&cap) + 2.0);
+            value.setAccessibilityLabel(Some(&NSString::from_str(s.caption)));
+            unsafe {
+                value.setAccessibilityValue(Some(&NSString::from_str(&s.value)));
+            }
         }
-        y += height(&head) + GAP_S;
+        y + ch + GAP
+    }
 
+    fn others(&self, c: &NSView, y: f64, rows: &[Row]) -> f64 {
         if rows.is_empty() {
-            let none = label(m, "No other sensors in range", styled(TextStyle::Body), &NSColor::tertiaryLabelColor());
-            place(c, &none, PAD, y + GAP_S);
-            return y + 32.0;
+            return y;
         }
-
+        let m = self.mtm;
+        let head = label(
+            m,
+            "Other sensors",
+            styled(TextStyle::Footnote),
+            &NSColor::secondaryLabelColor(),
+        );
+        place(c, &head, PAD, y);
+        let list_y = y + height(&head) + GAP_S;
         let group_h = rows.len() as f64 * ROW_H + GAP_S;
-        add(c, &ShapeView::quaternary_fill(m, rect(PAD, y, INNER, group_h), 10.0));
-        let mut row_y = y + GAP_S / 2.0;
+        add(
+            c,
+            &PlateView::new(m, rect(PAD, list_y, INNER, group_h), 12.0),
+        );
+        let mut row_y = list_y + GAP_S / 2.0;
         for (i, r) in rows.iter().enumerate() {
             if i > 0 {
                 add(
                     c,
                     &ShapeView::new(
                         m,
-                        rect(PAD + GAP_S, row_y, INNER - GAP_M, 1.0),
+                        rect(PAD + GAP_S, row_y, INNER - GAP, 1.0),
                         NSColor::separatorColor().colorWithAlphaComponent(0.8),
                         0.0,
                     ),
@@ -499,7 +677,7 @@ impl Ui {
             self.row(c, row_y, r);
             row_y += ROW_H;
         }
-        y + group_h + GAP_S
+        list_y + group_h + GAP
     }
 
     fn row(&self, c: &NSView, y: f64, r: &Row) {
@@ -519,33 +697,115 @@ impl Ui {
         );
         add(c, &view);
         let muted = r.co2.is_none();
-        let icon_name = if muted { "circle.dashed" } else { tone_symbol(r.tone) };
-        let icon_color = if muted { NSColor::tertiaryLabelColor() } else { tone_color(r.tone) };
+        let icon_name = if muted {
+            "circle.dashed"
+        } else {
+            tone_symbol(r.tone)
+        };
+        let icon_color = if muted {
+            NSColor::tertiaryLabelColor()
+        } else {
+            tone_color(r.tone)
+        };
         let sym = image_view(m, icon_name, &icon_color);
-        sym.setFrame(rect(GAP_M, (ROW_H - 14.0) / 2.0, 14.0, 14.0));
+        sym.setFrame(rect(12.0, (ROW_H - 14.0) / 2.0, 14.0, 14.0));
         add(&view, &sym);
-        let name_color = if muted { NSColor::secondaryLabelColor() } else { NSColor::labelColor() };
+        let name_color = if muted {
+            NSColor::secondaryLabelColor()
+        } else {
+            NSColor::labelColor()
+        };
         let name = label(m, &r.label, styled(TextStyle::Body), &name_color);
-        place(&view, &name, 36.0, (ROW_H - height(&name)) / 2.0);
+        place(&view, &name, 32.0, (ROW_H - height(&name)) / 2.0);
 
-        let right = rw - GAP_S;
+        let chevron = image_view(m, "chevron.down", &NSColor::tertiaryLabelColor());
+        chevron.setFrame(rect(rw - 22.0, (ROW_H - 10.0) / 2.0, 10.0, 10.0));
+        chevron.setAccessibilityElement(false);
+        add(&view, &chevron);
+
+        let right = rw - 30.0;
         if let Some(note) = &r.note {
-            let n = label(m, note, font(TextStyle::Callout), &NSColor::tertiaryLabelColor());
+            let n = label(
+                m,
+                note,
+                font(TextStyle::Callout),
+                &NSColor::tertiaryLabelColor(),
+            );
             place(&view, &n, right - width(&n), (ROW_H - height(&n)) / 2.0);
             return;
         }
-        let age = label(m, &r.age, mono_style(TextStyle::Caption1, weight(Weight::Regular)), &NSColor::tertiaryLabelColor());
-        place(&view, &age, right - width(&age), (ROW_H - height(&age)) / 2.0);
-        let temp = label(m, &r.temp, mono_style(TextStyle::Callout, weight(Weight::Regular)), &NSColor::secondaryLabelColor());
-        place(&view, &temp, right - 48.0 - width(&temp), (ROW_H - height(&temp)) / 2.0);
+        let age = label(
+            m,
+            &r.age,
+            mono_style(TextStyle::Caption1, weight(Weight::Regular)),
+            &NSColor::tertiaryLabelColor(),
+        );
+        place(
+            &view,
+            &age,
+            right - width(&age),
+            (ROW_H - height(&age)) / 2.0,
+        );
+        let temp = label(
+            m,
+            &r.temp,
+            mono_style(TextStyle::Callout, weight(Weight::Regular)),
+            &NSColor::secondaryLabelColor(),
+        );
+        place(
+            &view,
+            &temp,
+            right - 48.0 - width(&temp),
+            (ROW_H - height(&temp)) / 2.0,
+        );
         if let Some(co2) = &r.co2 {
             let s = NSMutableAttributedString::new();
-            s.appendAttributedString(&attributed(co2, &NSColor::labelColor(), &mono_style(TextStyle::Body, weight(Weight::Semibold))));
-            s.appendAttributedString(&attributed(" ppm", &NSColor::secondaryLabelColor(), &font(TextStyle::Caption1)));
+            s.appendAttributedString(&attributed(
+                co2,
+                &NSColor::labelColor(),
+                &mono_style(TextStyle::Body, weight(Weight::Semibold)),
+            ));
+            s.appendAttributedString(&attributed(
+                " ppm",
+                &NSColor::secondaryLabelColor(),
+                &font(TextStyle::Caption1),
+            ));
             let l = NSTextField::labelWithAttributedString(&s, m);
             l.sizeToFit();
-            place(&view, &l, right - 48.0 - 64.0 - width(&l), (ROW_H - height(&l)) / 2.0);
+            place(
+                &view,
+                &l,
+                right - 48.0 - 64.0 - width(&l),
+                (ROW_H - height(&l)) / 2.0,
+            );
         }
+    }
+
+    fn footer(&self, c: &NSView, y: f64, footer: &Footer) -> f64 {
+        let m = self.mtm;
+        let row_h = 28.0;
+        if footer.spinning {
+            add(
+                c,
+                &SpinView::new(m, rect(PAD, y + (row_h - 16.0) / 2.0, 16.0, 16.0)),
+            );
+        } else {
+            let icon = image_view(m, footer.symbol, &NSColor::secondaryLabelColor());
+            icon.setFrame(rect(PAD, y + (row_h - 16.0) / 2.0, 16.0, 16.0));
+            icon.setAccessibilityElement(false);
+            add(c, &icon);
+        }
+        let status = label(
+            m,
+            &footer.text,
+            styled(TextStyle::Footnote),
+            &NSColor::secondaryLabelColor(),
+        );
+        place(c, &status, PAD + 22.0, y + (row_h - height(&status)) / 2.0);
+        status.setAccessibilityLabel(Some(&NSString::from_str(&footer.text)));
+        self.gear.setFrame(rect(W - PAD - 28.0, y, 28.0, 28.0));
+        add(c, &self.gear);
+        y + row_h
     }
 
     fn install_escape_monitor(&self) {
@@ -655,6 +915,16 @@ pub(crate) fn mono_style(style: TextStyle, w: NSFontWeight) -> Retained<NSFont> 
     NSFont::monospacedDigitSystemFontOfSize_weight(size, w)
 }
 
+/// SF Pro Rounded, with a fall back to the system font.
+fn rounded_font(size: f64, w: NSFontWeight) -> Retained<NSFont> {
+    let base = NSFont::systemFontOfSize_weight(size, w);
+    let design = unsafe { NSFontDescriptorSystemDesignRounded };
+    base.fontDescriptor()
+        .fontDescriptorWithDesign(design)
+        .and_then(|descriptor| NSFont::fontWithDescriptor_size(&descriptor, size))
+        .unwrap_or(base)
+}
+
 fn attributed(text: &str, color: &NSColor, font: &NSFont) -> Retained<NSAttributedString> {
     let keys = unsafe { [NSForegroundColorAttributeName, NSFontAttributeName] };
     let values: [&AnyObject; 2] = [color.as_ref(), font.as_ref()];
@@ -662,7 +932,12 @@ fn attributed(text: &str, color: &NSColor, font: &NSFont) -> Retained<NSAttribut
     unsafe { NSAttributedString::new_with_attributes(&NSString::from_str(text), &attrs) }
 }
 
-pub(crate) fn label(mtm: MainThreadMarker, text: &str, font: Retained<NSFont>, color: &NSColor) -> Retained<NSTextField> {
+pub(crate) fn label(
+    mtm: MainThreadMarker,
+    text: &str,
+    font: Retained<NSFont>,
+    color: &NSColor,
+) -> Retained<NSTextField> {
     let l = NSTextField::labelWithString(&NSString::from_str(text), mtm);
     l.setFont(Some(&font));
     l.setTextColor(Some(color));
@@ -671,8 +946,11 @@ pub(crate) fn label(mtm: MainThreadMarker, text: &str, font: Retained<NSFont>, c
 }
 
 fn symbol(name: &str, description: &str) -> Retained<NSImage> {
-    NSImage::imageWithSystemSymbolName_accessibilityDescription(&NSString::from_str(name), Some(&NSString::from_str(description)))
-        .unwrap_or_else(NSImage::new)
+    NSImage::imageWithSystemSymbolName_accessibilityDescription(
+        &NSString::from_str(name),
+        Some(&NSString::from_str(description)),
+    )
+    .unwrap_or_else(NSImage::new)
 }
 
 fn popover_root(mtm: MainThreadMarker) -> Retained<NSView> {
