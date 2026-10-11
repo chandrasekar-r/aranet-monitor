@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Menu bar popover redesign: vibrancy surface, animated air hero, rounded CO₂ readout with a Good / Fair / Poor pill, 400–2,000+ gauge, sensor chips, and a Listening / Scanning footer. Menu bar symbol plus live ppm. History, alerts, passive BLE, and Sparkle updates are unchanged.
+
 ## 0.3.0
 
 - Golden Gate integrations: App Group shared state, CO₂ snooze + Control Center reload FFI, Focus filter + notification `filterCriteria`, desktop widget + Control Center Swift sources, `NSGlassEffectView` popover on macOS 27+, App Intents entity bridge for Siri / Spotlight.
